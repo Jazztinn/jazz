@@ -4,6 +4,22 @@ import { useEffect, useRef, useState } from "react";
 import { LiquidMetal } from "@paper-design/shaders-react";
 import { SunIcon, MoonIcon, SoundIcon } from "@/components/Icons";
 
+const EMPTY_CLIP = "polygon(0 0, 0 0, 0 0)";
+const SCROLL_EPSILON = 0.001;
+
+const NAV_LOGO_PATHS = [
+  "M 198 509 L 0 509 L 56 398.5 L 153 398.5 C 184 398.5, 214 381, 232 349 L 348.5 111 L 205.5 109 L 264.5 0 L 515 0 L 301.5 441 C 287 466, 246 498, 198 509 Z",
+  "M 406 509 L 7 509 C 1 508, -1 504, 0 498 C 2 488, 5 479, 11 469 L 222.5 32 C 231 16, 241 6, 256 0 L 384.5 0 L 254.5 244 L 188.5 387 C 188.5 394, 193 398, 200 398 L 489 398 L 406 509 Z",
+];
+
+function clamp01(value) {
+  return Math.min(1, Math.max(0, value));
+}
+
+function sameMask(a, b) {
+  return a.clipPath === b.clipPath && Math.abs(a.opacity - b.opacity) < SCROLL_EPSILON;
+}
+
 // silver / chrome liquid metal, masked to each glyph SVG
 const METAL = {
   colorBack: "#00000000",
@@ -16,17 +32,18 @@ const METAL = {
   contour: 0.8,
   speed: 0.5,
   fit: "contain",
-  scale: 1.1,
+  scale: 1,
   style: { width: "100%", height: "100%" },
 };
 
 export default function Landing() {
   const [dark, setDark] = useState(false);
   const [muted, setMuted] = useState(false);
-  const [p, setP] = useState(0); // intro reveal progress 0..1
-  const [q, setQ] = useState(0); // second-screen progress 0..1 (logo trace)
-  const [heroClip, setHeroClip] = useState("none");
-  const [heroOpacity, setHeroOpacity] = useState(1);
+  const [scrollProgress, setScrollProgress] = useState({ p: 0, q: 0 });
+  const [heroMask, setHeroMask] = useState({ clipPath: "none", opacity: 1 });
+  const { p, q } = scrollProgress; // p: intro reveal, q: second-screen logo trace
+  const progressRef = useRef(scrollProgress);
+  const rafRef = useRef(0);
   const audioCtx = useRef(null);
   const jRef = useRef(null);
   const lRef = useRef(null);
@@ -59,27 +76,55 @@ export default function Landing() {
   // intro is pinned). p: 0 = split, 1 = merged. Past p=1 the intro unpins and
   // the page scrolls normally to the content below.
   useEffect(() => {
-    function onScroll() {
+    function updateScrollProgress() {
+      rafRef.current = 0;
       const vh = window.innerHeight;
-      setP(Math.min(1, Math.max(0, window.scrollY / vh)));
-      // Logo traces in only AFTER the greeting is fully wiped and the merged
-      // JL has scrolled away: start at 1.15 viewports, finish by ~1.65.
-      setQ(Math.min(1, Math.max(0, (window.scrollY - vh * 1.15) / (vh * 0.5))));
+      const next = {
+        p: clamp01(window.scrollY / vh),
+        // Logo traces in only AFTER the greeting is fully wiped and the merged
+        // JL has scrolled away: start at 1.15 viewports, finish by ~1.65.
+        q: clamp01((window.scrollY - vh * 1.15) / (vh * 0.5)),
+      };
+      const previous = progressRef.current;
+      if (
+        Math.abs(next.p - previous.p) < SCROLL_EPSILON &&
+        Math.abs(next.q - previous.q) < SCROLL_EPSILON
+      ) {
+        return;
+      }
+      progressRef.current = next;
+      setScrollProgress(next);
     }
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+
+    function requestScrollUpdate() {
+      if (!rafRef.current) {
+        rafRef.current = window.requestAnimationFrame(updateScrollProgress);
+      }
+    }
+
+    updateScrollProgress();
+    window.addEventListener("scroll", requestScrollUpdate, { passive: true });
+    window.addEventListener("resize", requestScrollUpdate);
+    return () => {
+      window.removeEventListener("scroll", requestScrollUpdate);
+      window.removeEventListener("resize", requestScrollUpdate);
+      if (rafRef.current) {
+        window.cancelAnimationFrame(rafRef.current);
+      }
+    };
   }, []);
 
   // J + L slide inward to their exact positions within the full JL, then the
   // merged JL cross-fades in over them (aligned, so no ghosting/doubling).
   const meet = Math.min(1, p / 0.85);
-  // pieces stay fully opaque the whole slide (so they always ERASE the text
+  // Pieces stay fully opaque while they slide (so they always ERASE the text
   // they cover). Once they reach their slots they form the JL exactly, so we
-  // hard-swap to the merged SVG — no opacity fade, no see-through window.
-  const merged = p >= 0.85;
-  const pieceOpacity = merged ? 0 : 1;
-  const fullOpacity = merged ? 1 : 0;
+  // CROSS-FADE pieces -> merged JL over a window (aligned, so it reads as a
+  // smooth dissolve rather than a hard swap).
+  const merged = p >= 0.97; // clip fully closed by here
+  const sw = clamp01((p - 0.85) / 0.12); // 0.85 (pieces aligned) -> 0.97 dissolve
+  const pieceOpacity = 1 - sw;
+  const fullOpacity = sw;
 
   // Permanent erase: clip the hero to the band BETWEEN the J and the L. Each
   // clip edge is the actual bbox DIAGONAL of its glyph (J: top-right→bottom-left
@@ -87,9 +132,16 @@ export default function Landing() {
   // parallel to the "/" strokes and hug the real shapes. Computed in pixels and
   // mapped into the hero's local box. Band closes as the pieces meet.
   useEffect(() => {
+    function commitHeroMask(next) {
+      setHeroMask((current) => (sameMask(current, next) ? current : next));
+    }
+
     const j = jRef.current, l = lRef.current, h = heroRef.current;
     if (!j || !l || !h) return;
-    if (merged) { setHeroClip("polygon(0 0, 0 0, 0 0)"); return; } // fully wiped
+    if (merged) {
+      commitHeroMask({ clipPath: EMPTY_CLIP, opacity: 0 });
+      return;
+    } // fully wiped
     const vh = window.innerHeight;
     const hr = h.getBoundingClientRect();
     const jr = j.getBoundingClientRect();
@@ -111,17 +163,19 @@ export default function Landing() {
     const vw = window.innerWidth;
     const yMid = hr.top + hr.height / 2;
     const gap = xR(yMid) - xL(yMid);
-    setHeroOpacity(Math.max(0, Math.min(1, gap / (0.28 * vw))));
+    const opacity = clamp01(gap / (0.28 * vw));
     if (gap <= 0.03 * vw) {
-      setHeroClip("polygon(0 0, 0 0, 0 0)");
+      commitHeroMask({ clipPath: EMPTY_CLIP, opacity });
       return;
     }
     const px = (x, y) => `${(x - hr.left).toFixed(1)}px ${(y - hr.top).toFixed(1)}px`;
-    setHeroClip(
-      `polygon(${px(xL(yTop), yTop)}, ${px(xR(yTop), yTop)}, ` +
-        `${px(xR(yBot), yBot)}, ${px(xL(yBot), yBot)})`
-    );
-  }, [p]);
+    commitHeroMask({
+      clipPath:
+        `polygon(${px(xL(yTop), yTop)}, ${px(xR(yTop), yTop)}, ` +
+        `${px(xR(yBot), yBot)}, ${px(xL(yBot), yBot)})`,
+      opacity,
+    });
+  }, [p, merged]);
   const Y = -44; // near-centered, a touch low (matches reference)
   const leftX = -170 + meet * 90;  // J: peek from left edge → its slot in the JL (-80%)
   const rightX = 69 - meet * 84;   // L: peek from right edge → its slot in the JL (-15%)
@@ -144,10 +198,7 @@ export default function Landing() {
         aria-hidden
         style={{ opacity: q > 0 ? 1 : 0 }}
       >
-        {[
-          "M 198 509 L 0 509 L 56 398.5 L 153 398.5 C 184 398.5, 214 381, 232 349 L 348.5 111 L 205.5 109 L 264.5 0 L 515 0 L 301.5 441 C 287 466, 246 498, 198 509 Z",
-          "M 406 509 L 7 509 C 1 508, -1 504, 0 498 C 2 488, 5 479, 11 469 L 222.5 32 C 231 16, 241 6, 256 0 L 384.5 0 L 254.5 244 L 188.5 387 C 188.5 394, 193 398, 200 398 L 489 398 L 406 509 Z",
-        ].map((d, i) => (
+        {NAV_LOGO_PATHS.map((d, i) => (
           <path
             key={i}
             d={d}
@@ -206,7 +257,7 @@ export default function Landing() {
             </div>
           </div>
 
-          <div className="hero" ref={heroRef} style={{ clipPath: heroClip, opacity: heroOpacity }}>
+          <div className="hero" ref={heroRef} style={heroMask}>
             <h1>hi. i&rsquo;m jazz.</h1>
             <p className="sub">developer / illustrator / writer</p>
           </div>

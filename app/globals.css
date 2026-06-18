@@ -74,6 +74,21 @@ body {
 .frame {
   position: relative;
   min-height: 100vh;
+  --p: 0;
+  --q: 0;
+  --f: 0;
+  --j-x: -170%;
+  --l-x: 69%;
+  --mono-y: -44%;
+  --piece-opacity: 1;
+  --full-opacity: 0;
+  --nav-opacity: 0;
+  --nav-fill: 0;
+  --work-x: 0px;
+  --intro-right-x: 0vw;
+  --intro-left-x: 0vw;
+  --mono-mask-start: -25%;
+  --mono-mask-end: 0%;
 }
 
 .grid-page {
@@ -113,7 +128,15 @@ body {
   width: auto;
   z-index: 25;
   color: var(--ink);
+  opacity: var(--nav-opacity);
   transition: opacity 0.2s ease;
+}
+.nav-logo path {
+  fill: currentColor;
+  fill-opacity: var(--nav-fill);
+  stroke: currentColor;
+  stroke-dasharray: 1;
+  stroke-dashoffset: calc(1 - var(--q));
 }
 
 /* ---- toolbar (top-right) ---- */
@@ -200,21 +223,32 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 1vh;
+  gap: 3vh;
   overflow: hidden;
   pointer-events: none;
-  /* clip-path (set inline) limits each copy to one side of the J/L band */
+  /* clip-path + mask-image set inline (clip = side band, mask = bottom-up wipe) */
 }
 .intro-text-row {
+  width: 100%;
+  overflow: hidden;               /* red band stays full-width; text scrolls inside */
   white-space: nowrap;
   font-weight: 800;
   font-size: clamp(26px, 4.5vw, 76px);
   line-height: 1.05;
   letter-spacing: -0.01em;
   text-transform: uppercase;
-  color: var(--mono);
-  will-change: transform;
+  color: #ffffff;                 /* white text */
+  background: #d61f26;            /* red ribbon */
+  padding: 0.18em 0;
 }
+/* ribbon-less variant: red text, no background */
+.intro-text-row--naked {
+  background: transparent;
+  color: #d61f26;
+}
+.intro-text-drift { display: inline-flex; will-change: transform; }
+.intro-text-drift--right { transform: translateX(var(--intro-right-x)); }
+.intro-text-drift--left { transform: translateX(var(--intro-left-x)); }
 .intro-text-scroll { display: inline-flex; will-change: transform; }
 .intro-text-scroll.right { animation: marq-right 80s linear infinite; }
 .intro-text-scroll.left  { animation: marq-left 80s linear infinite; }
@@ -239,7 +273,21 @@ body {
 
 /* J / L pieces (slide to center) and merged full — liquid-metal canvases */
 .mono-piece { height: 80%; }
-.mono-full  { height: 80%; }
+.mono-j {
+  opacity: var(--piece-opacity);
+  transform: translate(var(--j-x), var(--mono-y));
+}
+.mono-l {
+  opacity: var(--piece-opacity);
+  transform: translate(var(--l-x), var(--mono-y));
+}
+.mono-full  {
+  height: 80%;
+  opacity: var(--full-opacity);
+  transform: translate(-50%, var(--mono-y));
+  -webkit-mask-image: linear-gradient(to top, transparent var(--mono-mask-start), #000 var(--mono-mask-end));
+  mask-image: linear-gradient(to top, transparent var(--mono-mask-start), #000 var(--mono-mask-end));
+}
 
 /* ---- hero ---- */
 .hero {
@@ -252,6 +300,9 @@ body {
   justify-content: center;
   text-align: center;
   padding: 0 24px;
+  opacity: 1;
+  clip-path: none;
+  will-change: clip-path, opacity;
 }
 .hero h1 {
   font-family: "Hangyaboly", cursive;
@@ -269,7 +320,7 @@ body {
   letter-spacing: 0.01em;
 }
 
-/* social links (fog-shader icons) */
+/* social links */
 .socials {
   display: flex;
   gap: 22px;
@@ -284,6 +335,7 @@ body {
   display: block;
   width: 52px;
   height: 52px;
+  background: var(--icon);
   mask-repeat: no-repeat;
   mask-position: center;
   mask-size: contain;
@@ -311,6 +363,7 @@ body {
   align-items: center;
   gap: 6vw;
   padding: 0 10vw 0 105vw; /* extra left padding starts the carousel further right */
+  transform: translate3d(var(--work-x), 0, 0);
   will-change: transform;
 }
 .work-intro {

@@ -8,6 +8,7 @@ export default function Landing() {
   const [muted, setMuted] = useState(false);
   const [p, setP] = useState(0); // scroll progress 0..1
   const [heroClip, setHeroClip] = useState("none");
+  const [heroOpacity, setHeroOpacity] = useState(1);
   const audioCtx = useRef(null);
   const jRef = useRef(null);
   const lRef = useRef(null);
@@ -73,13 +74,27 @@ export default function Landing() {
     const jr = j.getBoundingClientRect();
     const lr = l.getBoundingClientRect();
     const yTop = -0.4 * vh, yBot = 1.4 * vh; // extend past the hero box
-    // both glyphs share scale -> same slope (dx/dy), giving parallel // edges
-    const slopeJ = -jr.width / jr.height;
-    const slopeL = -lr.width / lr.height;
-    // left edge: J's right diagonal, anchored at its top-right corner
-    const xL = (y) => jr.right + slopeJ * (y - jr.top);
-    // right edge: L's left diagonal, anchored at its bottom-left corner
-    const xR = (y) => lr.left + slopeL * (y - lr.bottom);
+    // Slope of the glyph's slanted stroke, measured from the SVG paths
+    // (J right edge (515,0)->(246,498); L left edge (256,0)->(0,498)):
+    // dx/dy ~= -0.52. Both glyphs share it, so the edges stay parallel (//).
+    const slope = -0.52;
+    // left edge = J's right stroke, through its top-right corner (515,0)
+    const xL = (y) => jr.right + slope * (y - jr.top);
+    // right edge = L's left stroke, through its bottom-left corner (0,498)
+    const xR = (y) => lr.left + slope * (y - lr.bottom);
+    // Once the two diagonals cross (shapes touch / JL closes), the band would
+    // become a self-intersecting bowtie that leaks text through the JL's inner
+    // channel. Close the clip to zero as soon as they meet at the text line.
+    // Fade the remaining (un-wiped) text out as the gap closes, so it doesn't
+    // vanish abruptly when the clip snaps shut. Opacity tracks the gap width.
+    const vw = window.innerWidth;
+    const yMid = hr.top + hr.height / 2;
+    const gap = xR(yMid) - xL(yMid);
+    setHeroOpacity(Math.max(0, Math.min(1, gap / (0.28 * vw))));
+    if (gap <= 0.03 * vw) {
+      setHeroClip("polygon(0 0, 0 0, 0 0)");
+      return;
+    }
     const px = (x, y) => `${(x - hr.left).toFixed(1)}px ${(y - hr.top).toFixed(1)}px`;
     setHeroClip(
       `polygon(${px(xL(yTop), yTop)}, ${px(xR(yTop), yTop)}, ` +
@@ -143,7 +158,7 @@ export default function Landing() {
             />
           </div>
 
-          <div className="hero" ref={heroRef} style={{ clipPath: heroClip }}>
+          <div className="hero" ref={heroRef} style={{ clipPath: heroClip, opacity: heroOpacity }}>
             <h1>hi. i&rsquo;m jazz.</h1>
             <p className="sub">developer / illustrator / writer</p>
           </div>

@@ -55,7 +55,11 @@ html, body {
   padding: 0;
   color: var(--ink);
   font-family: var(--font-quicksand), system-ui, sans-serif;
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* old Edge/IE */
 }
+html::-webkit-scrollbar,
+body::-webkit-scrollbar { display: none; } /* WebKit */
 
 body {
   background: var(--frame);
@@ -128,6 +132,38 @@ body {
 }
 .icon-btn:hover { opacity: 0.55; transform: translateY(-1px); }
 
+/* ---- loading screen (JL outline traces in, fills, fades out) ---- */
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: var(--page);
+  transition: opacity 0.6s ease;
+}
+.loader--done {
+  opacity: 0;
+  pointer-events: none;
+}
+.loader-logo {
+  width: clamp(120px, 16vw, 200px);
+  height: auto;
+}
+.loader-logo path {
+  fill: var(--ink);
+  fill-opacity: 0;
+  stroke: var(--ink);
+  stroke-width: 14;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation:
+    jl-trace 0.9s ease-out forwards,
+    jl-fill 0.35s ease 0.85s forwards;
+}
+@keyframes jl-trace { to { stroke-dashoffset: 0; } }
+@keyframes jl-fill  { to { fill-opacity: 1; } }
+
 /* ---- pinned intro ---- */
 .intro {
   position: relative;
@@ -189,35 +225,70 @@ body {
   letter-spacing: 0.01em;
 }
 
-/* ---- content (after intro unpins) ---- */
-.content {
+/* ---- work: scroll-driven horizontal carousel ---- */
+.work {
   position: relative;
   z-index: 10;
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 80px 44px 140px;
+  height: 320vh; /* vertical scroll distance that drives the horizontal track */
 }
-.content h2 {
+.work-pin {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+.work-track {
+  display: flex;
+  align-items: center;
+  gap: 6vw;
+  padding: 0 8vw;
+  will-change: transform;
+}
+.work-intro {
+  flex: 0 0 auto;
+  width: 16vw;
+  padding-right: 1vw;
+}
+.work-intro h2 {
   font-family: "Bodoni FLF", serif;
-  font-size: clamp(28px, 4vw, 44px);
-  margin: 0 0 8px;
+  font-size: clamp(40px, 7vw, 96px);
+  margin: 0 0 16px;
   color: var(--ink);
+  line-height: 0.95;
 }
-.content .muted { color: var(--muted); margin: 0 0 32px; }
-.cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 18px;
+.work-intro .muted { color: var(--muted); font-size: clamp(14px, 1.4vw, 18px); }
+
+.work-item {
+  flex: 0 0 auto;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
-.card {
-  aspect-ratio: 4 / 3;
+.work-cap {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.work-photo {
   border: 1px solid var(--grid);
-  border-radius: 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.02);
   display: grid;
   place-items: center;
   color: var(--muted);
-  background: rgba(0, 0, 0, 0.015);
+  font-size: 13px;
 }
+/* staggered sizes + vertical offsets, like the reference gallery */
+.work-item--tall  .work-photo { width: 30vw; height: 64vh; }
+.work-item--wide  .work-photo { width: 42vw; height: 48vh; }
+.work-item--small .work-photo { width: 22vw; height: 34vh; }
+.work-item--tall  { align-self: center; }
+.work-item--wide  { align-self: flex-end; margin-bottom: 8vh; }
+.work-item--small { align-self: flex-start; margin-top: 10vh; }
 
 @media (max-width: 600px) {
   .wordmark { top: 26px; left: 26px; font-size: 21px; }

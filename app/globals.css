@@ -84,13 +84,13 @@ body {
 /* ---- wordmark (top-left) ---- */
 .wordmark {
   position: fixed;
-  top: 30px;            /* center (~54px) aligns with the logo center */
+  top: 27px;            /* center (~54px) aligns with the logo center */
   left: 44px;
   z-index: 20;
-  line-height: 0.92;    /* tighter gap between the two words */
+  line-height: 1.04;    /* original height */
   font-size: 26px;
   font-weight: 500;
-  letter-spacing: 0.07em;
+  letter-spacing: -0.045em;
   color: var(--ink);
   user-select: none;
 }
@@ -154,14 +154,12 @@ body {
   position: absolute;
   top: 50%;
   left: 50%;
-  /* recolor the black source SVGs to flat #f1f1f1 (0 -> 0.945*255 = 241) */
-  filter: brightness(0) invert(0.945);
   will-change: transform, opacity;
 }
 
-/* J / L pieces (slide to center) and merged full */
+/* J / L pieces (slide to center) and merged full — liquid-metal canvases */
 .mono-piece { height: 80%; }
-.mono-full  { height: 80%; width: auto; }
+.mono-full  { height: 80%; }
 
 /* ---- hero ---- */
 .hero {

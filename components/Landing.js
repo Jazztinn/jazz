@@ -1,7 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { LiquidMetal } from "@paper-design/shaders-react";
 import { SunIcon, MoonIcon, SoundIcon } from "@/components/Icons";
+
+// silver / chrome liquid metal, masked to each glyph SVG
+const METAL = {
+  colorBack: "#00000000",
+  colorTint: "#cfcfcf",
+  repetition: 4,
+  softness: 0.3,
+  shiftRed: 0,      // no chromatic dispersion (was the "glitchy" rainbow)
+  shiftBlue: 0,
+  distortion: 0.12,
+  contour: 0.8,
+  speed: 0.5,
+  fit: "contain",
+  scale: 1.1,
+  style: { width: "100%", height: "100%" },
+};
 
 export default function Landing() {
   const [dark, setDark] = useState(false);
@@ -167,26 +184,26 @@ export default function Landing() {
       <section className="intro">
         <div className="pin">
           <div className="mono-layer" aria-hidden>
-            <img
+            <div
               ref={jRef}
               className="mono-img mono-piece"
-              src="/monogram/J_refined_geometric.svg"
-              alt=""
-              style={{ transform: `translate(${leftX}%, ${Y}%)`, opacity: pieceOpacity }}
-            />
-            <img
+              style={{ aspectRatio: "516 / 509", transform: `translate(${leftX}%, ${Y}%)`, opacity: pieceOpacity }}
+            >
+              <LiquidMetal image="/monogram/J_refined_geometric.svg" {...METAL} />
+            </div>
+            <div
               ref={lRef}
               className="mono-img mono-piece"
-              src="/monogram/L_refined_geometric.svg"
-              alt=""
-              style={{ transform: `translate(${rightX}%, ${Y}%)`, opacity: pieceOpacity }}
-            />
-            <img
+              style={{ aspectRatio: "490 / 509", transform: `translate(${rightX}%, ${Y}%)`, opacity: pieceOpacity }}
+            >
+              <LiquidMetal image="/monogram/L_refined_geometric.svg" {...METAL} />
+            </div>
+            <div
               className="mono-img mono-full"
-              src="/monogram/JL_refined_geometric.svg"
-              alt=""
-              style={{ transform: `translate(-50%, ${Y}%)`, opacity: fullOpacity }}
-            />
+              style={{ aspectRatio: "831 / 509", transform: `translate(-50%, ${Y}%)`, opacity: fullOpacity }}
+            >
+              <LiquidMetal image="/monogram/JL_refined_geometric.svg" {...METAL} />
+            </div>
           </div>
 
           <div className="hero" ref={heroRef} style={{ clipPath: heroClip, opacity: heroOpacity }}>

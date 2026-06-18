@@ -16,6 +16,15 @@ function clamp01(value) {
   return Math.min(1, Math.max(0, value));
 }
 
+// work gallery items (staggered sizes/positions, like the reference)
+const WORK_ITEMS = [
+  { id: "project one", label: "PROJECT, 2024", size: "tall" },
+  { id: "project two", label: "CASE STUDY, 2024", size: "wide" },
+  { id: "project three", label: "WRITING, 2023", size: "small" },
+  { id: "project four", label: "PROJECT, 2025", size: "tall" },
+  { id: "project five", label: "CASE STUDY, 2025", size: "wide" },
+];
+
 function sameMask(a, b) {
   return a.clipPath === b.clipPath && Math.abs(a.opacity - b.opacity) < SCROLL_EPSILON;
 }
@@ -39,12 +48,14 @@ const METAL = {
 export default function Landing() {
   const [dark, setDark] = useState(false);
   const [muted, setMuted] = useState(false);
-  const [scrollProgress, setScrollProgress] = useState({ p: 0, q: 0 });
+  const [scrollProgress, setScrollProgress] = useState({ p: 0, q: 0, f: 0, wx: 0 });
   const [heroMask, setHeroMask] = useState({ clipPath: "none", opacity: 1 });
-  const { p, q } = scrollProgress; // p: intro reveal, q: second-screen logo trace
+  const { p, q, f, wx } = scrollProgress; // p: intro reveal, q: logo trace, f: JL bottom-up fade, wx: work track offset
   const progressRef = useRef(scrollProgress);
   const rafRef = useRef(0);
   const audioCtx = useRef(null);
+  const workRef = useRef(null);
+  const trackRef = useRef(null);
   const jRef = useRef(null);
   const lRef = useRef(null);
   const heroRef = useRef(null);
@@ -79,16 +90,34 @@ export default function Landing() {
     function updateScrollProgress() {
       rafRef.current = 0;
       const vh = window.innerHeight;
+      // work gallery: vertical scroll through the section drives a horizontal
+      // translate of the track (cards move left). Lando-style scroll carousel.
+      let wx = 0;
+      const sec = workRef.current, track = trackRef.current;
+      if (sec && track) {
+        // start moving when the nav logo starts tracing (1.55 viewports),
+        // driven by scroll — even before the section is on screen.
+        const startY = vh * 1.55;
+        const dist = sec.offsetHeight - vh;
+        const prog = dist > 0 ? clamp01((window.scrollY - startY) / dist) : 0;
+        wx = prog * Math.max(0, track.scrollWidth - window.innerWidth);
+      }
       const next = {
         p: clamp01(window.scrollY / vh),
         // Logo traces in only AFTER the greeting is fully wiped and the merged
-        // JL has scrolled away: start at 1.15 viewports, finish by ~1.65.
-        q: clamp01((window.scrollY - vh * 1.15) / (vh * 0.5)),
+        // JL has scrolled away: start at 1.55 viewports.
+        q: clamp01((window.scrollY - vh * 1.55) / (vh * 0.5)),
+        // merged JL fades to white from the bottom up as the user scrolls past
+        // the reveal (1.0 -> 1.6 viewports).
+        f: clamp01((window.scrollY - vh) / (vh * 0.6)),
+        wx,
       };
       const previous = progressRef.current;
       if (
         Math.abs(next.p - previous.p) < SCROLL_EPSILON &&
-        Math.abs(next.q - previous.q) < SCROLL_EPSILON
+        Math.abs(next.q - previous.q) < SCROLL_EPSILON &&
+        Math.abs(next.f - previous.f) < SCROLL_EPSILON &&
+        Math.abs(next.wx - previous.wx) < 0.5
       ) {
         return;
       }
@@ -251,7 +280,14 @@ export default function Landing() {
             </div>
             <div
               className="mono-img mono-full"
-              style={{ aspectRatio: "831 / 509", transform: `translate(-50%, ${Y}%)`, opacity: fullOpacity }}
+              style={{
+                aspectRatio: "831 / 509",
+                transform: `translate(-50%, ${Y}%)`,
+                opacity: fullOpacity,
+                // fade to white from the bottom up as the user scrolls down
+                maskImage: `linear-gradient(to top, transparent ${f * 110}%, #000 ${f * 110 + 15}%)`,
+                WebkitMaskImage: `linear-gradient(to top, transparent ${f * 110}%, #000 ${f * 110 + 15}%)`,
+              }}
             >
               <LiquidMetal image="/monogram/JL_refined_geometric.svg" {...METAL} />
             </div>
@@ -264,15 +300,29 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* content revealed after the intro unpins */}
-      <section className="content">
-        <h2>work</h2>
-        <p className="muted">[ placeholder — projects, case studies, and writing go here ]</p>
-        <div className="cards">
-          <div className="card">[ project one ]</div>
-          <div className="card">[ project two ]</div>
-          <div className="card">[ project three ]</div>
-          <div className="card">[ project four ]</div>
+      {/* work: vertical scroll drives a horizontal carousel of staggered cards */}
+      <section className="work" ref={workRef}>
+        <div className="work-pin">
+          <div
+            className="work-track"
+            ref={trackRef}
+            style={{ transform: `translate3d(${-wx}px, 0, 0)` }}
+          >
+            <div className="work-intro">
+              <h2>work</h2>
+              <p className="muted">
+                [ placeholder — projects,
+                <br />
+                case studies, and writing ]
+              </p>
+            </div>
+            {WORK_ITEMS.map((it) => (
+              <figure key={it.id} className={`work-item work-item--${it.size}`}>
+                <span className="work-cap">{it.label}</span>
+                <div className="work-photo">[ {it.id} ]</div>
+              </figure>
+            ))}
+          </div>
         </div>
       </section>
     </div>

@@ -6,7 +6,8 @@ import { SunIcon, MoonIcon, SoundIcon } from "@/components/Icons";
 export default function Landing() {
   const [dark, setDark] = useState(false);
   const [muted, setMuted] = useState(false);
-  const [p, setP] = useState(0); // scroll progress 0..1
+  const [p, setP] = useState(0); // intro reveal progress 0..1
+  const [q, setQ] = useState(0); // second-screen progress 0..1 (logo trace)
   const [heroClip, setHeroClip] = useState("none");
   const [heroOpacity, setHeroOpacity] = useState(1);
   const audioCtx = useRef(null);
@@ -42,8 +43,11 @@ export default function Landing() {
   // the page scrolls normally to the content below.
   useEffect(() => {
     function onScroll() {
-      const span = window.innerHeight;
-      setP(Math.min(1, Math.max(0, window.scrollY / span)));
+      const vh = window.innerHeight;
+      setP(Math.min(1, Math.max(0, window.scrollY / vh)));
+      // Logo traces in only AFTER the greeting is fully wiped and the merged
+      // JL has scrolled away: start at 1.15 viewports, finish by ~1.65.
+      setQ(Math.min(1, Math.max(0, (window.scrollY - vh * 1.15) / (vh * 0.5))));
     }
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -114,6 +118,33 @@ export default function Landing() {
         <br />
         legaspi
       </div>
+
+      {/* top-center logo: traces its outline (curves and all) as the second
+          screen scrolls in, then fills solid black. */}
+      <svg
+        className="nav-logo"
+        viewBox="0 0 831 509"
+        aria-hidden
+        style={{ opacity: q > 0 ? 1 : 0 }}
+      >
+        {[
+          "M 198 509 L 0 509 L 56 398.5 L 153 398.5 C 184 398.5, 214 381, 232 349 L 348.5 111 L 205.5 109 L 264.5 0 L 515 0 L 301.5 441 C 287 466, 246 498, 198 509 Z",
+          "M 406 509 L 7 509 C 1 508, -1 504, 0 498 C 2 488, 5 479, 11 469 L 222.5 32 C 231 16, 241 6, 256 0 L 384.5 0 L 254.5 244 L 188.5 387 C 188.5 394, 193 398, 200 398 L 489 398 L 406 509 Z",
+        ].map((d, i) => (
+          <path
+            key={i}
+            d={d}
+            transform={i === 1 ? "translate(341,0)" : undefined}
+            pathLength="1"
+            fill="#000"
+            fillOpacity={Math.max(0, Math.min(1, (q - 0.7) / 0.3))}
+            stroke="#000"
+            strokeWidth="14"
+            strokeDasharray="1"
+            strokeDashoffset={1 - q}
+          />
+        ))}
+      </svg>
 
       <div className="toolbar">
         <button

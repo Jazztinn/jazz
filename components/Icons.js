@@ -8,23 +8,23 @@ const stroke = {
   strokeLinejoin: "round",
 };
 
+const sunRays = Array.from({ length: 8 }, (_, i) => {
+  const a = (i * Math.PI) / 4;
+  return {
+    x1: 12 + Math.cos(a) * 7,
+    y1: 12 + Math.sin(a) * 7,
+    x2: 12 + Math.cos(a) * 9.4,
+    y2: 12 + Math.sin(a) * 9.4,
+  };
+});
+
 export function SunIcon({ size = 24 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden>
       <circle cx="12" cy="12" r="4.2" {...stroke} />
-      {[...Array(8)].map((_, i) => {
-        const a = (i * Math.PI) / 4;
-        return (
-          <line
-            key={i}
-            x1={12 + Math.cos(a) * 7}
-            y1={12 + Math.sin(a) * 7}
-            x2={12 + Math.cos(a) * 9.4}
-            y2={12 + Math.sin(a) * 9.4}
-            {...stroke}
-          />
-        );
-      })}
+      {sunRays.map((ray, i) => (
+        <line key={i} {...ray} {...stroke} />
+      ))}
     </svg>
   );
 }

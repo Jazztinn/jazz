@@ -1,0 +1,11 @@
+/node_modules
+/.next
+/out
+.DS_Store
+npm-debug.log*
+.env*.local
+
+# Local Codex skill installs/checkouts
+/.codex/skills/caveman/
+/.agents/skills/caveman/
+/skills/caveman/

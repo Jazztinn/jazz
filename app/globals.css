@@ -1,0 +1,184 @@
+/* Portfolio landing — scroll-reveal JL monogram. */
+
+@font-face {
+  font-family: "Hangyaboly";
+  src: url("/fonts/Hangyaboly.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Bodoni FLF";
+  src: url("/fonts/BodoniFLF-Roman.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Bodoni FLF";
+  src: url("/fonts/BodoniFLF-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Bodoni FLF";
+  src: url("/fonts/BodoniFLF-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --ink: #1a1a1a;
+  --muted: #2a2a2a;
+  --page: #ffffff;
+  --grid: rgba(40, 60, 100, 0.07);
+  --frame: #eef1f6;
+  --mono: rgba(20, 20, 20, 0.06);
+  --icon: #1a1a1a;
+}
+
+[data-theme="dark"] {
+  --ink: #f0f0f0;
+  --muted: #d8d8d8;
+  --page: #1b1e26;
+  --grid: rgba(180, 200, 240, 0.07);
+  --frame: #11141c;
+  --mono: rgba(240, 240, 240, 0.07);
+  --icon: #f0f0f0;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  color: var(--ink);
+  font-family: var(--font-quicksand), system-ui, sans-serif;
+}
+
+body {
+  background: var(--frame);
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+/* Outer light frame + inner grid page (matches mockup padding/border) */
+.frame {
+  position: relative;
+  min-height: 100vh;
+}
+
+.grid-page {
+  position: fixed;
+  inset: 14px;
+  border-radius: 6px;
+  background-color: var(--page);
+  background-image:
+    linear-gradient(to right, var(--grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+  background-size: 26px 26px;
+  overflow: hidden;
+  transition: background-color 0.25s ease;
+}
+
+/* ---- wordmark (top-left) ---- */
+.wordmark {
+  position: fixed;
+  top: 40px;
+  left: 44px;
+  z-index: 20;
+  line-height: 1.04;
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  color: var(--ink);
+  user-select: none;
+}
+
+/* ---- toolbar (top-right) ---- */
+.toolbar {
+  position: fixed;
+  top: 40px;
+  right: 44px;
+  z-index: 20;
+  display: flex;
+  gap: 22px;
+}
+.icon-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--icon);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.icon-btn:hover { opacity: 0.55; transform: translateY(-1px); }
+
+/* ---- background monogram layers ---- */
+.mono-layer {
+  position: fixed;
+  inset: 14px;
+  z-index: 5;
+  pointer-events: none;
+  overflow: hidden;
+}
+.mono-img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* make the artwork render in the faint --mono tint */
+  filter: grayscale(1) opacity(0.5);
+  will-change: transform, opacity;
+}
+
+/* the two split halves (state 1) */
+.mono-half {
+  height: 118%;
+  opacity: 0.5;
+}
+.mono-half.left  { transform: translate(-118%, -50%); }
+.mono-half.right { transform: translate(18%, -50%); }
+
+/* merged full monogram (state 2) */
+.mono-full {
+  height: 96%;
+  transform: translate(-50%, -50%);
+}
+
+/* ---- hero ---- */
+.hero {
+  position: relative;
+  z-index: 10;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 24px;
+}
+.hero h1 {
+  font-family: "Hangyaboly", cursive;
+  font-weight: 400;
+  font-size: clamp(56px, 11vw, 132px);
+  margin: 0;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+.hero .sub {
+  font-family: "Bodoni FLF", serif;
+  font-size: clamp(18px, 2.4vw, 30px);
+  margin: 6px 0 0;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
+
+/* scroll zone so the reveal has room */
+.scroll-zone { height: 180vh; }
+
+@media (max-width: 600px) {
+  .wordmark { top: 26px; left: 26px; font-size: 21px; }
+  .toolbar { top: 26px; right: 26px; gap: 16px; }
+}

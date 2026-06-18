@@ -116,11 +116,25 @@ body {
 }
 .icon-btn:hover { opacity: 0.55; transform: translateY(-1px); }
 
-/* ---- background monogram layers ---- */
+/* ---- pinned intro ---- */
+.intro {
+  position: relative;
+  z-index: 10;
+  height: 200vh; /* 100vh of scroll keeps .pin stuck while the reveal runs */
+}
+.pin {
+  position: sticky;
+  top: 14px;
+  height: calc(100vh - 28px);
+  overflow: hidden;
+}
+
+/* ---- monogram layers (flat #f1f1f1, above grid AND hero so it covers
+   the greeting where the shapes pass over it) ---- */
 .mono-layer {
-  position: fixed;
-  inset: 14px;
-  z-index: 5;
+  position: absolute;
+  inset: 0;
+  z-index: 12;
   pointer-events: none;
   overflow: hidden;
 }
@@ -128,30 +142,20 @@ body {
   position: absolute;
   top: 50%;
   left: 50%;
-  /* make the artwork render in the faint --mono tint */
-  filter: grayscale(1) opacity(0.5);
+  /* recolor the black source SVGs to flat #f1f1f1 (0 -> 0.945*255 = 241) */
+  filter: brightness(0) invert(0.945);
   will-change: transform, opacity;
 }
 
-/* the two split halves (state 1) */
-.mono-half {
-  height: 118%;
-  opacity: 0.5;
-}
-.mono-half.left  { transform: translate(-118%, -50%); }
-.mono-half.right { transform: translate(18%, -50%); }
-
-/* merged full monogram (state 2) */
-.mono-full {
-  height: 96%;
-  transform: translate(-50%, -50%);
-}
+/* J / L pieces (slide to center) and merged full */
+.mono-piece { height: 80%; }
+.mono-full  { height: 80%; width: auto; }
 
 /* ---- hero ---- */
 .hero {
-  position: relative;
+  position: absolute;
+  inset: 0;
   z-index: 10;
-  min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -175,8 +179,35 @@ body {
   letter-spacing: 0.01em;
 }
 
-/* scroll zone so the reveal has room */
-.scroll-zone { height: 180vh; }
+/* ---- content (after intro unpins) ---- */
+.content {
+  position: relative;
+  z-index: 10;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 80px 44px 140px;
+}
+.content h2 {
+  font-family: "Bodoni FLF", serif;
+  font-size: clamp(28px, 4vw, 44px);
+  margin: 0 0 8px;
+  color: var(--ink);
+}
+.content .muted { color: var(--muted); margin: 0 0 32px; }
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 18px;
+}
+.card {
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--grid);
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.015);
+}
 
 @media (max-width: 600px) {
   .wordmark { top: 26px; left: 26px; font-size: 21px; }

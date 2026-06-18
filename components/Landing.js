@@ -1,11 +1,32 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { LiquidMetal } from "@paper-design/shaders-react";
+import { LiquidMetal, SmokeRing } from "@paper-design/shaders-react";
 import { SunIcon, MoonIcon, SoundIcon } from "@/components/Icons";
 
 const EMPTY_CLIP = "polygon(0 0, 0 0, 0 0)";
 const SCROLL_EPSILON = 0.001;
+
+// social links — icons are SmokeRing ("fog") shaders masked to each brand glyph
+const SOCIALS = [
+  { id: "linkedin", href: "https://www.linkedin.com/in/jazztinn/", label: "LinkedIn" },
+  { id: "github", href: "https://github.com/Jazztinn", label: "GitHub" },
+  { id: "facebook", href: "https://www.facebook.com/orangelupin", label: "Facebook" },
+  { id: "instagram", href: "https://www.instagram.com/kiragenome/?hl=en", label: "Instagram" },
+];
+
+// fog look for the icons
+const FOG = {
+  colorBack: "#00000000",
+  colors: ["#2a2a2a", "#8a8a8a"],
+  speed: 0.4,
+  scale: 1.1,
+  noiseScale: 2,
+  thickness: 0.9,
+  radius: 0.1,
+  innerShape: 0.2,
+  style: { width: "100%", height: "100%" },
+};
 
 const NAV_LOGO_PATHS = [
   "M 198 509 L 0 509 L 56 398.5 L 153 398.5 C 184 398.5, 214 381, 232 349 L 348.5 111 L 205.5 109 L 264.5 0 L 515 0 L 301.5 441 C 287 466, 246 498, 198 509 Z",
@@ -48,6 +69,9 @@ const METAL = {
 export default function Landing() {
   const [dark, setDark] = useState(false);
   const [muted, setMuted] = useState(false);
+  // mount the heavy WebGL shaders only AFTER the loading screen is gone, so
+  // their (main-thread) init doesn't freeze the loader animation.
+  const [ready, setReady] = useState(false);
   const [scrollProgress, setScrollProgress] = useState({ p: 0, q: 0, f: 0, wx: 0 });
   const [heroMask, setHeroMask] = useState({ clipPath: "none", opacity: 1 });
   const { p, q, f, wx } = scrollProgress; // p: intro reveal, q: logo trace, f: JL bottom-up fade, wx: work track offset
@@ -63,6 +87,11 @@ export default function Landing() {
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
   }, [dark]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), 2000); // after loader unmounts (~1.9s)
+    return () => clearTimeout(t);
+  }, []);
 
   // WebAudio sine blip (reused from old Desktop.js)
   function blip() {
@@ -107,9 +136,9 @@ export default function Landing() {
         // Logo traces in only AFTER the greeting is fully wiped and the merged
         // JL has scrolled away: start at 1.55 viewports.
         q: clamp01((window.scrollY - vh * 1.55) / (vh * 0.5)),
-        // merged JL fades to white from the bottom up as the user scrolls past
-        // the reveal (1.0 -> 1.6 viewports).
-        f: clamp01((window.scrollY - vh) / (vh * 0.6)),
+        // merged JL fades to white from the bottom up, starting the instant it
+        // forms (~0.85) and fading over the rest of the pin (0.85 -> 1.55).
+        f: clamp01((window.scrollY - vh * 0.85) / (vh * 0.7)),
         wx,
       };
       const previous = progressRef.current;
@@ -269,14 +298,14 @@ export default function Landing() {
               className="mono-img mono-piece"
               style={{ aspectRatio: "516 / 509", transform: `translate(${leftX}%, ${Y}%)`, opacity: pieceOpacity }}
             >
-              <LiquidMetal image="/monogram/J_refined_geometric.svg" {...METAL} />
+              {ready && <LiquidMetal image="/monogram/J_refined_geometric.svg" {...METAL} />}
             </div>
             <div
               ref={lRef}
               className="mono-img mono-piece"
               style={{ aspectRatio: "490 / 509", transform: `translate(${rightX}%, ${Y}%)`, opacity: pieceOpacity }}
             >
-              <LiquidMetal image="/monogram/L_refined_geometric.svg" {...METAL} />
+              {ready && <LiquidMetal image="/monogram/L_refined_geometric.svg" {...METAL} />}
             </div>
             <div
               className="mono-img mono-full"
@@ -284,18 +313,41 @@ export default function Landing() {
                 aspectRatio: "831 / 509",
                 transform: `translate(-50%, ${Y}%)`,
                 opacity: fullOpacity,
-                // fade to white from the bottom up as the user scrolls down
-                maskImage: `linear-gradient(to top, transparent ${f * 110}%, #000 ${f * 110 + 15}%)`,
-                WebkitMaskImage: `linear-gradient(to top, transparent ${f * 110}%, #000 ${f * 110 + 15}%)`,
+                // fade to white from the bottom up as the user scrolls down.
+                // f=0 -> fully solid (transparent edge below the shape); f=1 -> gone.
+                maskImage: `linear-gradient(to top, transparent ${f * 125 - 25}%, #000 ${f * 125}%)`,
+                WebkitMaskImage: `linear-gradient(to top, transparent ${f * 125 - 25}%, #000 ${f * 125}%)`,
               }}
             >
-              <LiquidMetal image="/monogram/JL_refined_geometric.svg" {...METAL} />
+              {ready && <LiquidMetal image="/monogram/JL_refined_geometric.svg" {...METAL} />}
             </div>
           </div>
 
           <div className="hero" ref={heroRef} style={heroMask}>
             <h1>hi. i&rsquo;m jazz.</h1>
             <p className="sub">developer / illustrator / writer</p>
+            <div className="socials">
+              {SOCIALS.map((s) => (
+                <a
+                  key={s.id}
+                  className="social"
+                  href={s.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={s.label}
+                >
+                  <span
+                    className="social-fog"
+                    style={{
+                      maskImage: `url(/icons/${s.id}.svg)`,
+                      WebkitMaskImage: `url(/icons/${s.id}.svg)`,
+                    }}
+                  >
+                    {ready && <SmokeRing {...FOG} />}
+                  </span>
+                </a>
+              ))}
+            </div>
           </div>
         </div>
       </section>

@@ -17,10 +17,10 @@ const SOCIALS = [
   { id: "instagram", href: "https://www.instagram.com/kiragenome/?hl=en", label: "Instagram" },
 ];
 
-// fog look for the icons
-const FOG = {
+// Fog look for the icons. Colors are theme-specific so the masks don't sink
+// into the page in dark mode.
+const FOG_BASE = {
   colorBack: "#00000000",
-  colors: ["#2a2a2a", "#8a8a8a"],
   speed: 0.4,
   scale: 1.1,
   noiseScale: 2,
@@ -28,6 +28,16 @@ const FOG = {
   radius: 0.1,
   innerShape: 0.2,
   style: { width: "100%", height: "100%" },
+};
+
+const FOG_LIGHT = {
+  ...FOG_BASE,
+  colors: ["#2a2a2a", "#8a8a8a"],
+};
+
+const FOG_DARK = {
+  ...FOG_BASE,
+  colors: ["#f5f5f5", "#9ea7b7"],
 };
 
 const NAV_LOGO_PATHS = [
@@ -145,6 +155,8 @@ export default function Landing() {
   const [ready, setReady] = useState(false);
   const [scrollProgress, setScrollProgress] = useState({ p: 0, q: 0, f: 0, wx: 0 });
   const [heroMask, setHeroMask] = useState({ clipPath: "none", opacity: 1 });
+  // marquee clips: text shows only OUTSIDE the J/L band (inverse of heroMask)
+  const [marqueeClip, setMarqueeClip] = useState({ left: "none", right: "none" });
   const { p, q, f, wx } = scrollProgress; // p: intro reveal, q: logo trace, f: JL bottom-up fade, wx: work track offset
   const progressRef = useRef(scrollProgress);
   const rafRef = useRef(0);
@@ -154,6 +166,7 @@ export default function Landing() {
   const trackRef = useRef(null);
   const jRef = useRef(null);
   const lRef = useRef(null);
+  const fullRef = useRef(null);
   const heroRef = useRef(null);
 
   useEffect(() => {
@@ -329,6 +342,7 @@ export default function Landing() {
   const sw = clamp01((p - 0.85) / 0.12); // 0.85 (pieces aligned) -> 0.97 dissolve
   const pieceOpacity = 1 - sw;
   const fullOpacity = sw;
+  const fog = dark ? FOG_DARK : FOG_LIGHT;
 
   // Permanent erase: clip the hero to the band BETWEEN the J and the L. Each
   // clip edge is the actual bbox DIAGONAL of its glyph (J: top-right→bottom-left
@@ -342,12 +356,13 @@ export default function Landing() {
 
     const j = jRef.current, l = lRef.current, h = heroRef.current;
     if (!j || !l || !h) return;
-    if (merged) {
-      commitHeroMask({ clipPath: EMPTY_CLIP, opacity: 0 });
-      return;
-    } // fully wiped
     const vh = window.innerHeight;
     const hr = h.getBoundingClientRect();
+    if (merged) {
+      // text fully wiped; leave the marquee clip frozen (set before the merge)
+      commitHeroMask({ clipPath: EMPTY_CLIP, opacity: 0 });
+      return;
+    }
     const jr = j.getBoundingClientRect();
     const lr = l.getBoundingClientRect();
     const yTop = -0.4 * vh, yBot = 1.4 * vh; // extend past the hero box
@@ -359,20 +374,36 @@ export default function Landing() {
     const xL = (y) => jr.right + slope * (y - jr.top);
     // right edge = L's left stroke, through its bottom-left corner (0,498)
     const xR = (y) => lr.left + slope * (y - lr.bottom);
-    // Once the two diagonals cross (shapes touch / JL closes), the band would
-    // become a self-intersecting bowtie that leaks text through the JL's inner
-    // channel. Close the clip to zero as soon as they meet at the text line.
-    // Fade the remaining (un-wiped) text out as the gap closes, so it doesn't
-    // vanish abruptly when the clip snaps shut. Opacity tracks the gap width.
     const vw = window.innerWidth;
     const yMid = hr.top + hr.height / 2;
     const gap = xR(yMid) - xL(yMid);
-    const opacity = clamp01(gap / (0.28 * vw));
-    if (gap <= 0.03 * vw) {
-      commitHeroMask({ clipPath: EMPTY_CLIP, opacity });
+    // Don't fade during the slide — the clip wipe handles erasing as J/L pass.
+    // Only fade the remaining greeting once the pieces start dissolving into
+    // the full logo (the 0.85 -> 0.97 crossfade window).
+    const sw = clamp01((p - 0.85) / 0.12);
+    const opacity = 1 - sw;
+    const px = (x, y) => `${(x - hr.left).toFixed(1)}px ${(y - hr.top).toFixed(1)}px`;
+
+    // marquee = inverse band (outside J's right diagonal + outside L's left
+    // diagonal). Freeze it once the merge transition begins (p >= 0.85) so the
+    // clip stops moving while J/L dissolve into the full JL.
+    if (p < 0.85) {
+      const W = hr.width;
+      const Lx = -40 - hr.left, Rx = W + 40;
+      setMarqueeClip({
+        left:
+          `polygon(${Lx}px ${(yTop - hr.top).toFixed(1)}px, ${px(xL(yTop), yTop)}, ` +
+          `${px(xL(yBot), yBot)}, ${Lx}px ${(yBot - hr.top).toFixed(1)}px)`,
+        right:
+          `polygon(${px(xR(yTop), yTop)}, ${Rx}px ${(yTop - hr.top).toFixed(1)}px, ` +
+          `${Rx}px ${(yBot - hr.top).toFixed(1)}px, ${px(xR(yBot), yBot)})`,
+      });
+    }
+
+    if (gap <= 0.01 * vw) {
+      commitHeroMask({ clipPath: EMPTY_CLIP, opacity: 0 });
       return;
     }
-    const px = (x, y) => `${(x - hr.left).toFixed(1)}px ${(y - hr.top).toFixed(1)}px`;
     commitHeroMask({
       clipPath:
         `polygon(${px(xL(yTop), yTop)}, ${px(xR(yTop), yTop)}, ` +
@@ -408,9 +439,9 @@ export default function Landing() {
             d={d}
             transform={i === 1 ? "translate(341,0)" : undefined}
             pathLength="1"
-            fill="#000"
+            fill="currentColor"
             fillOpacity={Math.max(0, Math.min(1, (q - 0.7) / 0.3))}
-            stroke="#000"
+            stroke="currentColor"
             strokeWidth="14"
             strokeDasharray="1"
             strokeDashoffset={1 - q}
@@ -440,20 +471,27 @@ export default function Landing() {
         <div className="pin">
           {/* slanted text marquee that drifts as the J/L converge — top row
               right, bottom row left, tilted opposite to the wipe ("\"). */}
-          <div className="intro-text" aria-hidden>
-            <div className="intro-text-row" style={{ transform: `translateX(${p * 40}vw)` }}>
-              <div className="intro-text-scroll right">
-                <span>lorem ipsum dolor sit amet&nbsp;·&nbsp;consectetur adipiscing elit&nbsp;·&nbsp;</span>
-                <span>lorem ipsum dolor sit amet&nbsp;·&nbsp;consectetur adipiscing elit&nbsp;·&nbsp;</span>
+          {[marqueeClip.left, marqueeClip.right].map((clip, side) => (
+            <div
+              key={side}
+              className="intro-text"
+              aria-hidden
+              style={{ clipPath: clip, WebkitClipPath: clip, opacity: 1 - f }}
+            >
+              <div className="intro-text-row" style={{ transform: `translateX(${p * 60}vw)` }}>
+                <div className="intro-text-scroll right">
+                  <span>We are dreaming of a new day when the new day&rsquo;s here already. We are running from the battle when it&rsquo;s one that must be fought.&nbsp;&nbsp;&nbsp;</span>
+                  <span>We are dreaming of a new day when the new day&rsquo;s here already. We are running from the battle when it&rsquo;s one that must be fought.&nbsp;&nbsp;&nbsp;</span>
+                </div>
+              </div>
+              <div className="intro-text-row" style={{ transform: `translateX(${-p * 60}vw)` }}>
+                <div className="intro-text-scroll left">
+                  <span>We are dreaming of tomorrow, and tomorrow isn&rsquo;t coming. We are dreaming of a glory that we don&rsquo;t really want.&nbsp;&nbsp;&nbsp;</span>
+                  <span>We are dreaming of tomorrow, and tomorrow isn&rsquo;t coming. We are dreaming of a glory that we don&rsquo;t really want.&nbsp;&nbsp;&nbsp;</span>
+                </div>
               </div>
             </div>
-            <div className="intro-text-row" style={{ transform: `translateX(${-p * 40}vw)` }}>
-              <div className="intro-text-scroll left">
-                <span>sed do eiusmod tempor incididunt&nbsp;·&nbsp;ut labore et dolore&nbsp;·&nbsp;</span>
-                <span>sed do eiusmod tempor incididunt&nbsp;·&nbsp;ut labore et dolore&nbsp;·&nbsp;</span>
-              </div>
-            </div>
-          </div>
+          ))}
 
           <div className="mono-layer" aria-hidden>
             <div
@@ -471,6 +509,7 @@ export default function Landing() {
               {ready && <LiquidMetal image="/monogram/L_refined_geometric.svg" {...METAL} />}
             </div>
             <div
+              ref={fullRef}
               className="mono-img mono-full"
               style={{
                 aspectRatio: "831 / 509",
@@ -506,7 +545,7 @@ export default function Landing() {
                       WebkitMaskImage: `url(/icons/${s.id}.svg)`,
                     }}
                   >
-                    {ready && <SmokeRing {...FOG} />}
+                    {ready && <SmokeRing {...fog} />}
                   </span>
                 </a>
               ))}

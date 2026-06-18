@@ -157,12 +157,22 @@ body {
   stroke-width: 14;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  animation:
-    jl-trace 0.9s ease-out forwards,
-    jl-fill 0.35s ease 0.85s forwards;
+  /* draw in, then reverse out, repeating — a looping "loading" trace */
+  animation: jl-trace 1.5s ease-in-out infinite alternate;
 }
-@keyframes jl-trace { to { stroke-dashoffset: 0; } }
-@keyframes jl-fill  { to { fill-opacity: 1; } }
+@keyframes jl-trace {
+  from { stroke-dashoffset: 1; }
+  to   { stroke-dashoffset: 0; }
+}
+/* L traces from the opposite end (negative offset) */
+.loader-logo path.loader-l {
+  stroke-dashoffset: -1;
+  animation-name: jl-trace-rev;
+}
+@keyframes jl-trace-rev {
+  from { stroke-dashoffset: -1; }
+  to   { stroke-dashoffset: 0; }
+}
 
 /* ---- pinned intro ---- */
 .intro {
@@ -176,6 +186,38 @@ body {
   height: calc(100vh - 28px);
   overflow: hidden;
 }
+
+/* ---- slanted intro text marquee (behind the metal + hero) ---- */
+.intro-text {
+  position: absolute;
+  inset: -20% 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1vh;
+  overflow: hidden;
+  pointer-events: none;
+  /* hide the middle band — text only shows to the sides of J / L */
+  -webkit-mask: linear-gradient(to right, #000 0 33%, transparent 41% 59%, #000 67% 100%);
+  mask: linear-gradient(to right, #000 0 33%, transparent 41% 59%, #000 67% 100%);
+}
+.intro-text-row {
+  white-space: nowrap;
+  font-weight: 800;
+  font-size: clamp(64px, 11vw, 180px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  text-transform: lowercase;
+  color: rgba(20, 20, 20, 0.06);
+  will-change: transform;
+}
+[data-theme="dark"] .intro-text-row { color: rgba(240, 240, 240, 0.07); }
+.intro-text-scroll { display: inline-flex; will-change: transform; }
+.intro-text-scroll.right { animation: marq-right 26s linear infinite; }
+.intro-text-scroll.left  { animation: marq-left 26s linear infinite; }
+@keyframes marq-right { from { transform: translateX(-50%); } to { transform: translateX(0); } }
+@keyframes marq-left  { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 
 /* ---- monogram layers (flat #f1f1f1, above grid AND hero so it covers
    the greeting where the shapes pass over it) ---- */
@@ -266,7 +308,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6vw;
-  padding: 0 10vw 0 58vw; /* extra left padding starts the carousel further right */
+  padding: 0 10vw 0 90vw; /* extra left padding starts the carousel further right */
   will-change: transform;
 }
 .work-intro {
@@ -300,10 +342,9 @@ body {
   border: 1px solid var(--grid);
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.02);
-  display: grid;
-  place-items: center;
-  color: var(--muted);
-  font-size: 13px;
+  display: block;
+  object-fit: cover;
+  box-shadow: 0 18px 60px rgba(20, 25, 35, 0.08);
 }
 /* staggered sizes + vertical offsets, like the reference gallery */
 .work-item--tall  .work-photo { width: 30vw; height: 64vh; }

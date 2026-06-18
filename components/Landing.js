@@ -6,6 +6,8 @@ import { SunIcon, MoonIcon, SoundIcon } from "@/components/Icons";
 
 const EMPTY_CLIP = "polygon(0 0, 0 0, 0 0)";
 const SCROLL_EPSILON = 0.001;
+const SMOOTH_SCROLL_EASE = 0.075;
+const MOUSE_WHEEL_MULTIPLIER = 1.15;
 
 // social links — icons are SmokeRing ("fog") shaders masked to each brand glyph
 const SOCIALS = [
@@ -37,13 +39,82 @@ function clamp01(value) {
   return Math.min(1, Math.max(0, value));
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function isScrollableElement(element) {
+  if (!(element instanceof Element)) return false;
+  const style = window.getComputedStyle(element);
+  const canScrollY = /(auto|scroll|overlay)/.test(style.overflowY);
+  return canScrollY && element.scrollHeight > element.clientHeight;
+}
+
+function closestScrollableElement(target) {
+  let element = target instanceof Element ? target : target?.parentElement;
+  while (element && element !== document.body && element !== document.documentElement) {
+    if (isScrollableElement(element)) return element;
+    element = element.parentElement;
+  }
+  return null;
+}
+
+function shouldSmoothWheel(event) {
+  if (event.defaultPrevented || event.ctrlKey || event.metaKey) return false;
+  if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return false;
+  if (event.target?.closest?.("input, textarea, select, [contenteditable]")) return false;
+
+  return event.deltaY !== 0;
+}
+
+function normalizeWheelDelta(event) {
+  if (event.deltaMode === 1) return event.deltaY * 18 * MOUSE_WHEEL_MULTIPLIER;
+  if (event.deltaMode === 2) return event.deltaY * window.innerHeight * MOUSE_WHEEL_MULTIPLIER;
+  return event.deltaY * MOUSE_WHEEL_MULTIPLIER;
+}
+
 // work gallery items (staggered sizes/positions, like the reference)
 const WORK_ITEMS = [
-  { id: "project one", label: "PROJECT, 2024", size: "tall" },
-  { id: "project two", label: "CASE STUDY, 2024", size: "wide" },
-  { id: "project three", label: "WRITING, 2023", size: "small" },
-  { id: "project four", label: "PROJECT, 2025", size: "tall" },
-  { id: "project five", label: "CASE STUDY, 2025", size: "wide" },
+  {
+    id: "datalink booth",
+    label: "EXPLAINING THE BOOTH, 2024",
+    size: "tall",
+    src: "/work/datalink-booth.jpg",
+    alt: "Datalink booth presentation with printed materials and neon display",
+    position: "center",
+  },
+  {
+    id: "live drawing",
+    label: "DRAWING, 2024",
+    size: "wide",
+    src: "/work/live-drawing.jpg",
+    alt: "Close-up of live marker drawing on a display board",
+    position: "center",
+  },
+  {
+    id: "group portrait",
+    label: "WITH THE TEAM, 2023",
+    size: "small",
+    src: "/work/group-portrait.jpg",
+    alt: "Group portrait outdoors beneath flowering trees",
+    position: "center",
+  },
+  {
+    id: "candid drink",
+    label: "OFF THE CLOCK, 2025",
+    size: "tall",
+    src: "/work/candid-drink.jpg",
+    alt: "Candid outdoor portrait holding a drink",
+    position: "center",
+  },
+  {
+    id: "helmet walk",
+    label: "OUT & ABOUT, 2025",
+    size: "wide",
+    src: "/work/helmet-walk.jpg",
+    alt: "Person walking outside wearing a stylized helmet",
+    position: "center",
+  },
 ];
 
 function sameMask(a, b) {
@@ -77,6 +148,7 @@ export default function Landing() {
   const { p, q, f, wx } = scrollProgress; // p: intro reveal, q: logo trace, f: JL bottom-up fade, wx: work track offset
   const progressRef = useRef(scrollProgress);
   const rafRef = useRef(0);
+  const smoothScrollRef = useRef({ current: 0, target: 0, raf: 0, active: false });
   const audioCtx = useRef(null);
   const workRef = useRef(null);
   const trackRef = useRef(null);
@@ -89,8 +161,84 @@ export default function Landing() {
   }, [dark]);
 
   useEffect(() => {
-    const t = setTimeout(() => setReady(true), 2000); // after loader unmounts (~1.9s)
-    return () => clearTimeout(t);
+    // Loader fires "jl:loaded" once page assets are in; it then waits a beat
+    // before fading, so the shaders are processed by the time they're revealed.
+    const onLoaded = () => setReady(true);
+    window.addEventListener("jl:loaded", onLoaded, { once: true });
+    const t = setTimeout(() => setReady(true), 9000); // fallback
+    return () => {
+      window.removeEventListener("jl:loaded", onLoaded);
+      clearTimeout(t);
+    };
+  }, []);
+
+  useEffect(() => {
+    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const state = smoothScrollRef.current;
+
+    function maxScroll() {
+      return Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    }
+
+    function stopSmoothScroll() {
+      state.active = false;
+      if (state.raf) {
+        window.cancelAnimationFrame(state.raf);
+        state.raf = 0;
+      }
+    }
+
+    function tick() {
+      const diff = state.target - state.current;
+      if (Math.abs(diff) < 0.5) {
+        state.current = state.target;
+        window.scrollTo(0, state.target);
+        stopSmoothScroll();
+        return;
+      }
+
+      state.current += diff * SMOOTH_SCROLL_EASE;
+      window.scrollTo(0, state.current);
+      state.raf = window.requestAnimationFrame(tick);
+    }
+
+    function startSmoothScroll() {
+      if (!state.raf) {
+        state.raf = window.requestAnimationFrame(tick);
+      }
+    }
+
+    function onWheel(event) {
+      if (motionQuery.matches || !shouldSmoothWheel(event)) return;
+
+      if (closestScrollableElement(event.target)) return;
+
+      event.preventDefault();
+      if (!state.active) {
+        state.current = window.scrollY;
+        state.target = window.scrollY;
+        state.active = true;
+      }
+      state.target = clamp(state.target + normalizeWheelDelta(event), 0, maxScroll());
+      startSmoothScroll();
+    }
+
+    function syncNativeScroll() {
+      if (state.active) return;
+      state.current = window.scrollY;
+      state.target = window.scrollY;
+    }
+
+    syncNativeScroll();
+    window.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("scroll", syncNativeScroll, { passive: true });
+    window.addEventListener("resize", syncNativeScroll);
+    return () => {
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("scroll", syncNativeScroll);
+      window.removeEventListener("resize", syncNativeScroll);
+      stopSmoothScroll();
+    };
   }, []);
 
   // WebAudio sine blip (reused from old Desktop.js)
@@ -124,9 +272,8 @@ export default function Landing() {
       let wx = 0;
       const sec = workRef.current, track = trackRef.current;
       if (sec && track) {
-        // start moving when the nav logo starts tracing (1.55 viewports),
-        // driven by scroll — even before the section is on screen.
-        const startY = vh * 1.55;
+        // carousel starts a bit earlier, before the nav logo forms (1.15 vh).
+        const startY = vh * 1.15;
         const dist = sec.offsetHeight - vh;
         const prog = dist > 0 ? clamp01((window.scrollY - startY) / dist) : 0;
         wx = prog * Math.max(0, track.scrollWidth - window.innerWidth);
@@ -136,9 +283,8 @@ export default function Landing() {
         // Logo traces in only AFTER the greeting is fully wiped and the merged
         // JL has scrolled away: start at 1.55 viewports.
         q: clamp01((window.scrollY - vh * 1.55) / (vh * 0.5)),
-        // merged JL fades to white from the bottom up, starting the instant it
-        // forms (~0.85) and fading over the rest of the pin (0.85 -> 1.55).
-        f: clamp01((window.scrollY - vh * 0.85) / (vh * 0.7)),
+        // merged JL fades to white from the bottom up (1.0 -> 1.6 viewports).
+        f: clamp01((window.scrollY - vh * 1.0) / (vh * 0.6)),
         wx,
       };
       const previous = progressRef.current;
@@ -292,6 +438,23 @@ export default function Landing() {
       {/* pinned intro: monogram reveal + hero. Unpins after one viewport. */}
       <section className="intro">
         <div className="pin">
+          {/* slanted text marquee that drifts as the J/L converge — top row
+              right, bottom row left, tilted opposite to the wipe ("\"). */}
+          <div className="intro-text" aria-hidden>
+            <div className="intro-text-row" style={{ transform: `translateX(${p * 40}vw)` }}>
+              <div className="intro-text-scroll right">
+                <span>lorem ipsum dolor sit amet&nbsp;·&nbsp;consectetur adipiscing elit&nbsp;·&nbsp;</span>
+                <span>lorem ipsum dolor sit amet&nbsp;·&nbsp;consectetur adipiscing elit&nbsp;·&nbsp;</span>
+              </div>
+            </div>
+            <div className="intro-text-row" style={{ transform: `translateX(${-p * 40}vw)` }}>
+              <div className="intro-text-scroll left">
+                <span>sed do eiusmod tempor incididunt&nbsp;·&nbsp;ut labore et dolore&nbsp;·&nbsp;</span>
+                <span>sed do eiusmod tempor incididunt&nbsp;·&nbsp;ut labore et dolore&nbsp;·&nbsp;</span>
+              </div>
+            </div>
+          </div>
+
           <div className="mono-layer" aria-hidden>
             <div
               ref={jRef}
@@ -361,17 +524,24 @@ export default function Landing() {
             style={{ transform: `translate3d(${-wx}px, 0, 0)` }}
           >
             <div className="work-intro">
-              <h2>work</h2>
+              <h2>daily life</h2>
               <p className="muted">
-                [ placeholder — projects,
+                candid moments — booth talks,
                 <br />
-                case studies, and writing ]
+                drawing, meetings, and in-between
               </p>
             </div>
             {WORK_ITEMS.map((it) => (
               <figure key={it.id} className={`work-item work-item--${it.size}`}>
                 <span className="work-cap">{it.label}</span>
-                <div className="work-photo">[ {it.id} ]</div>
+                <img
+                  className="work-photo"
+                  src={it.src}
+                  alt={it.alt}
+                  loading="lazy"
+                  decoding="async"
+                  style={{ objectPosition: it.position }}
+                />
               </figure>
             ))}
           </div>

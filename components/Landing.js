@@ -43,6 +43,11 @@ const OUTRO_FOG = {
   style: { width: "100%", height: "100%" },
 };
 
+const MENU_FOG = {
+  ...OUTRO_FOG,
+  colorFront: "#ffffff",
+};
+
 const NAV_LOGO_PATHS = [
   "M 198 509 L 0 509 L 56 398.5 L 153 398.5 C 184 398.5, 214 381, 232 349 L 348.5 111 L 205.5 109 L 264.5 0 L 515 0 L 301.5 441 C 287 466, 246 498, 198 509 Z",
   "M 406 509 L 7 509 C 1 508, -1 504, 0 498 C 2 488, 5 479, 11 469 L 222.5 32 C 231 16, 241 6, 256 0 L 384.5 0 L 254.5 244 L 188.5 387 C 188.5 394, 193 398, 200 398 L 489 398 L 406 509 Z",
@@ -157,6 +162,7 @@ export default function Landing() {
   const [ready, setReady] = useState(false);
   const [monoStage, setMonoStage] = useState("pieces");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuClosing, setMenuClosing] = useState(false);
   const progressRef = useRef({ p: -1, q: -1, f: -1, wx: -1 });
   const monoStageRef = useRef("pieces");
   const rafRef = useRef(0);
@@ -174,6 +180,16 @@ export default function Landing() {
   const lRef = useRef(null);
   const fullRef = useRef(null);
   const heroRef = useRef(null);
+
+  function openMenu() {
+    setMenuClosing(false);
+    setMenuOpen(true);
+  }
+
+  function closeMenu() {
+    setMenuOpen(false);
+    setMenuClosing(true);
+  }
 
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
@@ -537,24 +553,33 @@ export default function Landing() {
           className={`menu-btn${menuOpen ? " menu-btn--open" : ""}`}
           aria-label="Menu"
           aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((o) => !o)}
+          onClick={() => (menuOpen ? closeMenu() : openMenu())}
         >
           <span />
           <span />
         </button>
       </div>
 
-      {/* menu modal: slides down from the top, rounded bottom edge */}
-      <div className={`menu-modal${menuOpen ? " menu-modal--open" : ""}`} aria-hidden={!menuOpen}>
+      {/* menu modal: black panel with white dithering texture */}
+      <div
+        className={`menu-modal${menuOpen ? " menu-modal--open" : ""}${menuClosing ? " menu-modal--closing" : ""}`}
+        aria-hidden={!menuOpen}
+        onAnimationEnd={(event) => {
+          if (event.animationName === "menu-eat-out") setMenuClosing(false);
+        }}
+      >
+        <div className="menu-modal-fog" aria-hidden>
+          {ready && <Dithering {...MENU_FOG} />}
+        </div>
         <nav className="menu-modal-nav">
-          <a href="#" onClick={() => setMenuOpen(false)}>work</a>
-          <a href="#" onClick={() => setMenuOpen(false)}>about</a>
-          <a href="#" onClick={() => setMenuOpen(false)}>contact</a>
+          <a href="#" onClick={closeMenu}>work</a>
+          <a href="#" onClick={closeMenu}>about</a>
+          <a href="#" onClick={closeMenu}>contact</a>
         </nav>
       </div>
       <div
-        className={`menu-scrim${menuOpen ? " menu-scrim--open" : ""}`}
-        onClick={() => setMenuOpen(false)}
+        className={`menu-scrim${menuOpen || menuClosing ? " menu-scrim--open" : ""}`}
+        onClick={closeMenu}
         aria-hidden
       />
 

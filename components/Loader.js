@@ -10,6 +10,29 @@ const PATHS = [
 
 const TRACE_MIN = 1400; // keep the trace visible at least this long
 const MAX_WAIT = 8000;  // safety cap so we never hang on a stuck asset
+const SHADER_PAINT = 600; // beat for the liquid-metal shaders to paint after mount
+
+// The monogram art is fed to the WebGL shaders as textures, not as page <img>,
+// so window.load never waits for it. Preload here so we don't reveal the page
+// before the JL logo can actually render.
+const MONO_SVGS = [
+  "/monogram/J_refined_geometric.svg",
+  "/monogram/L_refined_geometric.svg",
+  "/monogram/JL_refined_geometric.svg",
+];
+
+function preloadImages(srcs) {
+  return Promise.all(
+    srcs.map(
+      (src) =>
+        new Promise((resolve) => {
+          const img = new Image();
+          img.onload = img.onerror = () => resolve();
+          img.src = src;
+        })
+    )
+  );
+}
 
 export default function Loader() {
   const [done, setDone] = useState(false);   // start fade-out
@@ -25,16 +48,22 @@ export default function Loader() {
     // to process before fading out — so nothing pops in after the loader.
     function finish() {
       if (!alive) return;
-      const wait = Math.max(0, TRACE_MIN - (performance.now() - start));
-      timers.push(setTimeout(() => {
+      // Wait for the monogram textures, keep the trace up a minimum, mount the
+      // shaders, give them a beat to actually paint, THEN fade out — so the
+      // page is never revealed before the JL logo can render.
+      preloadImages(MONO_SVGS).then(() => {
         if (!alive) return;
-        // Mount the shaders AND start the fade at the same moment: the fade is
-        // an opacity transition (compositor thread), so it stays smooth even
-        // while the shaders do their (main-thread) processing behind it.
-        window.dispatchEvent(new Event("jl:loaded"));
-        setDone(true);
-        timers.push(setTimeout(() => alive && setGone(true), 750));
-      }, wait));
+        const wait = Math.max(0, TRACE_MIN - (performance.now() - start));
+        timers.push(setTimeout(() => {
+          if (!alive) return;
+          window.dispatchEvent(new Event("jl:loaded")); // mount shaders
+          timers.push(setTimeout(() => {
+            if (!alive) return;
+            setDone(true); // start fade once shaders had time to paint
+            timers.push(setTimeout(() => alive && setGone(true), 750));
+          }, SHADER_PAINT));
+        }, wait));
+      });
     }
 
     if (document.readyState === "complete") finish();

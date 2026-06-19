@@ -1,13 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { LiquidMetal, SmokeRing, Dithering } from "@paper-design/shaders-react";
+import dynamic from "next/dynamic";
 import { SunIcon, MoonIcon, SoundIcon } from "@/components/Icons";
 
 const EMPTY_CLIP = "polygon(0 0, 0 0, 0 0)";
 const SCROLL_EPSILON = 0.001;
 const SMOOTH_SCROLL_EASE = 0.075;
 const MOUSE_WHEEL_MULTIPLIER = 1.15;
+
+const loadShaders = () => import("@paper-design/shaders-react");
+
+const LiquidMetal = dynamic(() => loadShaders().then((mod) => mod.LiquidMetal), { ssr: false });
+const SmokeRing = dynamic(() => loadShaders().then((mod) => mod.SmokeRing), { ssr: false });
+const Dithering = dynamic(() => loadShaders().then((mod) => mod.Dithering), { ssr: false });
 
 // Grayscale fog for every icon — black/gray/white, no brand colors.
 const BW_FOG = { colors: ["#111111", "#888888", "#f2f2f2"], colorBack: "#00000000" };
@@ -100,6 +106,8 @@ const WORK_ITEMS = [
     src: "/work/datalink-booth.jpg",
     alt: "Datalink booth presentation with printed materials and neon display",
     position: "center",
+    width: 1800,
+    height: 1200,
   },
   {
     id: "live drawing",
@@ -108,6 +116,8 @@ const WORK_ITEMS = [
     src: "/work/live-drawing.jpg",
     alt: "Close-up of live marker drawing on a display board",
     position: "center",
+    width: 1600,
+    height: 1200,
     quote: "To strive, to seek, to find, and not to yield.",
     quoteBy: "Ulysses",
     tone: "warm-duotone",
@@ -119,6 +129,8 @@ const WORK_ITEMS = [
     src: "/work/group-portrait.jpg",
     alt: "Group portrait outdoors beneath flowering trees",
     position: "center",
+    width: 1600,
+    height: 1200,
   },
   {
     id: "candid drink",
@@ -127,6 +139,8 @@ const WORK_ITEMS = [
     src: "/work/candid-drink.jpg",
     alt: "Candid outdoor portrait holding a drink",
     position: "center",
+    width: 1600,
+    height: 1060,
   },
   {
     id: "helmet walk",
@@ -135,6 +149,8 @@ const WORK_ITEMS = [
     src: "/work/helmet-walk.jpg",
     alt: "Person walking outside wearing a stylized helmet",
     position: "center",
+    width: 1200,
+    height: 1600,
   },
 ];
 
@@ -160,11 +176,11 @@ export default function Landing() {
   // mount the heavy WebGL shaders only AFTER the loading screen is gone, so
   // their (main-thread) init doesn't freeze the loader animation.
   const [ready, setReady] = useState(false);
-  const [monoStage, setMonoStage] = useState("pieces");
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuClosing, setMenuClosing] = useState(false);
+  const [floodShaderActive, setFloodShaderActive] = useState(false);
   const progressRef = useRef({ p: -1, q: -1, f: -1, wx: -1 });
-  const monoStageRef = useRef("pieces");
+  const floodShaderActiveRef = useRef(false);
   const rafRef = useRef(0);
   const sloshRef = useRef({ y: 0, t: 0 });
   const floodRef = useRef(null);
@@ -178,7 +194,6 @@ export default function Landing() {
   const introTextRightRef = useRef(null);
   const jRef = useRef(null);
   const lRef = useRef(null);
-  const fullRef = useRef(null);
   const heroRef = useRef(null);
 
   function openMenu() {
@@ -194,6 +209,18 @@ export default function Landing() {
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
   }, [dark]);
+
+  useEffect(() => {
+    const preload = () => {
+      loadShaders().catch(() => {});
+    };
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(preload, { timeout: 1200 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = window.setTimeout(preload, 0);
+    return () => window.clearTimeout(id);
+  }, []);
 
   useEffect(() => {
     // Loader fires "jl:loaded" once page assets are in; it then waits a beat
@@ -362,6 +389,11 @@ export default function Landing() {
       const fl = floodRef.current;
       if (fl) {
         const top = fl.getBoundingClientRect().top;
+        const floodShouldBeActive = top <= vh * 2;
+        if (floodShouldBeActive !== floodShaderActiveRef.current) {
+          floodShaderActiveRef.current = floodShouldBeActive;
+          setFloodShaderActive(floodShouldBeActive);
+        }
         const overTop = top <= 90;
         const overBottom = top <= vh - 60;
         if (overTop !== overFloodRef.current.top) {
@@ -390,14 +422,6 @@ export default function Landing() {
       // No full-logo crossfade: the J/L pieces slide in and freeze at the merged
       // position. They stay visible (full logo is never shown) and fade out
       // bottom-up with --f on the way down.
-      const fullOpacity = 0;
-      const pieceOpacity = 1;
-      const nextMonoStage = "pieces";
-      if (nextMonoStage !== monoStageRef.current) {
-        monoStageRef.current = nextMonoStage;
-        setMonoStage(nextMonoStage);
-      }
-
       setCssVar(frame, "--p", String(next.p));
       setCssVar(frame, "--q", String(next.q));
       setCssVar(frame, "--f", String(next.f));
@@ -406,8 +430,6 @@ export default function Landing() {
       setCssVar(frame, "--work-x", `${(-wx).toFixed(2)}px`);
       setCssVar(frame, "--j-x", `${(-185 + meet * 105).toFixed(3)}%`);
       setCssVar(frame, "--l-x", `${(85 - meet * 100).toFixed(3)}%`);
-      setCssVar(frame, "--piece-opacity", String(pieceOpacity));
-      setCssVar(frame, "--full-opacity", String(fullOpacity));
       setCssVar(frame, "--intro-right-x", `${(next.p * 60).toFixed(3)}vw`);
       setCssVar(frame, "--intro-left-x", `${(-next.p * 60).toFixed(3)}vw`);
       setCssVar(frame, "--mono-mask-start", `${(next.f * 125 - 25).toFixed(3)}%`);
@@ -520,7 +542,7 @@ export default function Landing() {
       </div>
       {/* beige halftone over the whole orange flood */}
       <div className="flood-fog" aria-hidden>
-        {ready && <Dithering {...OUTRO_FOG} />}
+        {ready && floodShaderActive && <Dithering {...OUTRO_FOG} />}
       </div>
 
       <div className="wordmark">
@@ -569,7 +591,7 @@ export default function Landing() {
         }}
       >
         <div className="menu-modal-fog" aria-hidden>
-          {ready && <Dithering {...MENU_FOG} />}
+          {ready && (menuOpen || menuClosing) && <Dithering {...MENU_FOG} />}
         </div>
         <nav className="menu-modal-nav">
           <a href="#" onClick={closeMenu}>work</a>
@@ -638,22 +660,19 @@ export default function Landing() {
               className="mono-img mono-piece mono-j"
               style={{ aspectRatio: "516 / 509" }}
             >
-              {ready && monoStage !== "full" && <LiquidMetal image="/monogram/J_refined_geometric.svg" {...METAL} />}
+              {ready && <LiquidMetal image="/monogram/J_refined_geometric.svg" {...METAL} />}
             </div>
             <div
               ref={lRef}
               className="mono-img mono-piece mono-l"
               style={{ aspectRatio: "490 / 509" }}
             >
-              {ready && monoStage !== "full" && <LiquidMetal image="/monogram/L_refined_geometric.svg" {...METAL} />}
+              {ready && <LiquidMetal image="/monogram/L_refined_geometric.svg" {...METAL} />}
             </div>
             <div
-              ref={fullRef}
               className="mono-img mono-full"
               style={{ aspectRatio: "831 / 509" }}
-                  >
-                    {ready && monoStage !== "pieces" && <LiquidMetal image="/monogram/JL_refined_geometric.svg" {...METAL} />}
-                  </div>
+            />
           </div>
 
           <div className="hero" ref={heroRef}>
@@ -719,6 +738,8 @@ export default function Landing() {
                   className={`work-photo${it.tone ? ` work-photo--${it.tone}` : ""}`}
                   src={it.src}
                   alt={it.alt}
+                  width={it.width}
+                  height={it.height}
                   loading="lazy"
                   decoding="async"
                   style={{ objectPosition: it.position }}

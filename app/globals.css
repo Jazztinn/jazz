@@ -89,6 +89,10 @@ body {
   --intro-left-x: 0vw;
   --mono-mask-start: -25%;
   --mono-mask-end: 0%;
+  --warm: 0;
+  --submerge: 0;
+  --slosh: 0deg;
+  --liquid-rise: 0px;
 }
 
 .grid-page {
@@ -102,6 +106,64 @@ body {
   background-size: 26px 26px;
   overflow: hidden;
   transition: background-color 0.25s ease;
+}
+
+/* Orange flood anchored in the document — its waterline stays at a fixed page
+   position and scrolls past with the content (it does NOT stick to the screen).
+   Tall block reaching the page bottom; the wavy top edge is the waterline. */
+.flood {
+  position: absolute;
+  /* oversized past the page edges so the slosh tilt never exposes a corner */
+  left: -15vw;
+  right: -15vw;
+  bottom: -20vh;
+  height: 210vh; /* waterline sits ~190vh above the page bottom */
+  pointer-events: none;
+}
+.flood--back  { z-index: 9; }   /* fill behind the photos (those above waterline) */
+.flood--front { z-index: 11; }  /* opaque over photos below the waterline */
+.liquid-inner {
+  position: absolute;
+  inset: 0;
+  /* slosh: scroll velocity tilts the surface; pivots at the waterline (top) */
+  transform: rotate(var(--slosh, 0deg));
+  transform-origin: 50% 0;
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.liquid-body {
+  position: absolute;
+  inset: 0;
+  background: #ff7a18; /* flat, seamless */
+}
+/* thin animated wave strips ride the waterline (top edge of the liquid) */
+.liquid-wave {
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  background-repeat: repeat-x;
+}
+/* front wave: flat orange + a black outline along the top crest only */
+.liquid-wave.one {
+  z-index: 1;
+  bottom: 100%;
+  height: 28px;
+  background-size: 220px 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='28' viewBox='0 0 220 28'%3E%3Cpath d='M0 15 C 55 4 110 26 165 15 C 192 9 210 19 220 15 L220 28 L0 28 Z' fill='%23ff7a18'/%3E%3C/svg%3E");
+  animation: wave-move 2.6s linear infinite;
+}
+/* back wave: kept just under the crest for subtle motion, no outline */
+.liquid-wave.two {
+  z-index: 0;
+  bottom: 100%;
+  height: 22px;
+  background-size: 280px 22px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='22' viewBox='0 0 280 22'%3E%3Cpath d='M0 12 C 70 3 140 20 210 12 C 245 7 265 16 280 12 L280 22 L0 22 Z' fill='%23ff7a18'/%3E%3C/svg%3E");
+  animation: wave-move 3.8s linear infinite reverse;
+}
+@keyframes wave-move {
+  from { background-position-x: 0; }
+  to   { background-position-x: 280px; }
 }
 
 /* ---- wordmark (top-left) ---- */
@@ -142,12 +204,81 @@ body {
 /* ---- toolbar (top-right) ---- */
 .toolbar {
   position: fixed;
-  top: 40px;
+  bottom: 26px;
   right: 44px;
   z-index: 20;
   display: flex;
-  gap: 22px;
+  gap: 30px;
 }
+.toolbar .icon-btn { transition: color 0.25s ease; }
+.frame[data-flood-b="1"] .toolbar .icon-btn { color: #fff; }
+
+/* top-right: contact pill + menu button */
+.topbar {
+  position: fixed;
+  top: 32px;
+  right: 36px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+/* menu: black liquid-glass physical button that recesses when pressed */
+.menu-btn {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  gap: 5px;
+  padding: 0;
+  background: linear-gradient(155deg, #3a3a3a 0%, #141414 55%, #000 100%);
+  box-shadow:
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.35),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.7);
+  transition: box-shadow 0.12s ease, transform 0.12s ease;
+}
+/* glassy top highlight */
+.menu-btn::before {
+  content: "";
+  position: absolute;
+  inset: 1.5px 1.5px 45%;
+  border-radius: 12px 12px 8px 8px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+.menu-btn:active {
+  transform: translateY(2px) scale(0.97);
+  box-shadow:
+    inset 0 5px 10px rgba(0, 0, 0, 0.9),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.6);
+}
+.menu-btn:active::before { opacity: 0.3; }
+.menu-btn span {
+  display: block;
+  width: 20px;
+  height: 2.5px;
+  background: #f2f2f2;
+  border-radius: 2px;
+  position: relative;
+  z-index: 1;
+}
+.menu-btn span:last-child { width: 13px; }
+
+/* over the orange flood: top UI turns white */
+.wordmark, .nav-logo { transition: color 0.25s ease; }
+.frame[data-flood="1"] .wordmark { color: #fff; }
+.frame[data-flood="1"] .nav-logo { color: #fff; }
+.frame[data-flood="1"] .menu-btn {
+  background: linear-gradient(155deg, #ffffff 0%, #e8e8e8 55%, #d2d2d2 100%);
+  box-shadow:
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.9),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.18);
+}
+.frame[data-flood="1"] .menu-btn span { background: #1a1a1a; }
 .icon-btn {
   border: none;
   background: none;
@@ -183,23 +314,22 @@ body {
   fill-opacity: 0;
   stroke: var(--ink);
   stroke-width: 14;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  /* draw in, then reverse out, repeating — a looping "loading" trace */
-  animation: jl-trace 1.5s ease-in-out infinite alternate;
+  /* a half-length dash travels around the closed path forever — seamless loop */
+  stroke-dasharray: 0.5 0.5;
+  stroke-dashoffset: 0;
+  animation: jl-trace 2s linear infinite;
 }
 @keyframes jl-trace {
   from { stroke-dashoffset: 1; }
   to   { stroke-dashoffset: 0; }
 }
-/* L traces from the opposite end (negative offset) */
+/* L travels the opposite direction */
 .loader-logo path.loader-l {
-  stroke-dashoffset: -1;
   animation-name: jl-trace-rev;
 }
 @keyframes jl-trace-rev {
-  from { stroke-dashoffset: -1; }
-  to   { stroke-dashoffset: 0; }
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: 1; }
 }
 
 /* ---- pinned intro ---- */
@@ -272,7 +402,11 @@ body {
 }
 
 /* J / L pieces (slide to center) and merged full — liquid-metal canvases */
-.mono-piece { height: 80%; }
+.mono-piece {
+  height: 80%;
+  -webkit-mask-image: linear-gradient(to top, transparent var(--mono-mask-start), #000 var(--mono-mask-end));
+  mask-image: linear-gradient(to top, transparent var(--mono-mask-start), #000 var(--mono-mask-end));
+}
 .mono-j {
   opacity: var(--piece-opacity);
   transform: translate(var(--j-x), var(--mono-y));
@@ -345,6 +479,11 @@ body {
 }
 
 /* ---- work: scroll-driven horizontal carousel ---- */
+.outro {
+  position: relative;
+  z-index: 10;
+  height: 170vh;
+}
 .work {
   position: relative;
   z-index: 10;
@@ -413,5 +552,7 @@ body {
 
 @media (max-width: 600px) {
   .wordmark { top: 26px; left: 26px; font-size: 21px; }
-  .toolbar { top: 26px; right: 26px; gap: 16px; }
+  .toolbar { bottom: 10px; right: 22px; gap: 22px; }
+  .topbar { top: 22px; right: 22px; gap: 9px; }
+  .menu-btn { width: 42px; height: 42px; }
 }

@@ -9,53 +9,39 @@ const SCROLL_EPSILON = 0.001;
 const SMOOTH_SCROLL_EASE = 0.075;
 const MOUSE_WHEEL_MULTIPLIER = 1.15;
 
+// Grayscale fog for every icon — black/gray/white, no brand colors.
+const BW_FOG = { colors: ["#111111", "#888888", "#f2f2f2"], colorBack: "#00000000" };
+
 const SOCIALS = [
-  {
-    id: "linkedin",
-    href: "https://www.linkedin.com/in/jazztinn/",
-    label: "LinkedIn",
-    shader: {
-      colors: ["#0a66c2", "#69b7ff", "#d8efff"],
-      colorBack: "#00000000",
-    },
-  },
-  {
-    id: "github",
-    href: "https://github.com/Jazztinn",
-    label: "GitHub",
-    shader: {
-      colors: ["#181717", "#6e7681", "#f0f6fc"],
-      colorBack: "#00000000",
-    },
-  },
-  {
-    id: "facebook",
-    href: "https://www.facebook.com/orangelupin",
-    label: "Facebook",
-    shader: {
-      colors: ["#1877f2", "#5aa7ff", "#e7f0ff"],
-      colorBack: "#00000000",
-    },
-  },
-  {
-    id: "instagram",
-    href: "https://www.instagram.com/kiragenome/?hl=en",
-    label: "Instagram",
-    shader: {
-      colors: ["#feda75", "#fa7e1e", "#d62976", "#962fbf", "#4f5bd5"],
-      colorBack: "#00000000",
-    },
-  },
+  { id: "linkedin", href: "https://www.linkedin.com/in/jazztinn/", label: "LinkedIn", shader: BW_FOG },
+  { id: "github", href: "https://github.com/Jazztinn", label: "GitHub", shader: BW_FOG },
+  { id: "facebook", href: "https://www.facebook.com/orangelupin", label: "Facebook", shader: BW_FOG },
+  { id: "instagram", href: "https://www.instagram.com/kiragenome/?hl=en", label: "Instagram", shader: BW_FOG },
 ];
 
 const SOCIAL_SHADER = {
-  speed: 0.32,
-  scale: 1.25,
-  noiseScale: 2.2,
-  thickness: 0.9,
-  radius: 0.12,
-  innerShape: 0.2,
+  speed: 2.4,
+  scale: 1.6,
+  noiseScale: 3.2,
+  thickness: 0.7,
+  radius: 0.35,
+  innerShape: 0.4,
   maxPixelCount: 4096,
+  minPixelRatio: 1,
+  style: { width: "100%", height: "100%" },
+};
+
+// Beige duotone smoke drifting over the orange flood, below the white line.
+const OUTRO_FOG = {
+  speed: 0.6,
+  scale: 1.3,
+  noiseScale: 1.6,
+  thickness: 1.1,
+  radius: 0.6,
+  innerShape: 0.8,
+  colors: ["#efe4cb", "#e2d2ab", "#d8c49a"],
+  colorBack: "#00000000",
+  maxPixelCount: 9000,
   minPixelRatio: 1,
   style: { width: "100%", height: "100%" },
 };
@@ -173,6 +159,9 @@ export default function Landing() {
   const progressRef = useRef({ p: -1, q: -1, f: -1, wx: -1 });
   const monoStageRef = useRef("pieces");
   const rafRef = useRef(0);
+  const sloshRef = useRef({ y: 0, t: 0 });
+  const floodRef = useRef(null);
+  const overFloodRef = useRef({ top: false, bottom: false });
   const smoothScrollRef = useRef({ current: 0, target: 0, raf: 0, active: false });
   const audioCtx = useRef(null);
   const frameRef = useRef(null);
@@ -314,13 +303,19 @@ export default function Landing() {
       // work gallery: vertical scroll through the section drives a horizontal
       // translate of the track (cards move left). Lando-style scroll carousel.
       let wx = 0;
+      let workProg = 0;
+      let workRawProg = 0;
       const sec = workRef.current, track = trackRef.current;
       if (sec && track) {
-        // carousel starts a bit earlier, before the nav logo forms (1.15 vh).
-        const startY = vh * 1.15;
-        const dist = sec.offsetHeight - vh;
-        const prog = dist > 0 ? clamp01((window.scrollY - startY) / dist) : 0;
-        wx = prog * Math.max(0, track.scrollWidth - window.innerWidth);
+        // Tie carousel progress to the section's own sticky range so it finishes
+        // exactly when the pin releases — no dead scroll, normal scroll resumes.
+        // `lead` lets it start moving ~1 viewport before the section pins.
+        const rect = sec.getBoundingClientRect();
+        const lead = vh * 1.0;
+        const span = sec.offsetHeight - vh + lead;
+        workRawProg = span > 0 ? (lead - rect.top) / span : 0; // unclamped, grows past 1
+        workProg = clamp01(workRawProg);
+        wx = workProg * Math.max(0, track.scrollWidth - window.innerWidth);
       }
 
       const next = {
@@ -332,6 +327,36 @@ export default function Landing() {
         f: clamp01((window.scrollY - vh * 1.0) / (vh * 0.6)),
         wx,
       };
+      // These run EVERY frame (before the early-return below), because the flood
+      // region is reached long after p/q/f/wx have saturated — otherwise the
+      // change-guard would skip all updates while scrolling through the orange.
+      // slosh: scroll velocity tilts the surface on scroll.
+      const now = performance.now();
+      const sl = sloshRef.current;
+      const dt = Math.max(16, now - (sl.t || now));
+      const vel = (window.scrollY - sl.y) / dt; // px per ms
+      sl.y = window.scrollY;
+      sl.t = now;
+      setCssVar(frame, "--slosh", `${clamp(-vel * 2.5, -3.5, 3.5).toFixed(2)}deg`);
+      if (sl.settle) clearTimeout(sl.settle);
+      sl.settle = setTimeout(() => setCssVar(frame, "--slosh", "0deg"), 110);
+      // top UI turns white once the waterline rises above the top bar; bottom
+      // toggles turn white once it rises above the bottom toggles.
+      const fl = floodRef.current;
+      if (fl) {
+        const top = fl.getBoundingClientRect().top;
+        const overTop = top <= 90;
+        const overBottom = top <= vh - 60;
+        if (overTop !== overFloodRef.current.top) {
+          overFloodRef.current.top = overTop;
+          frame.dataset.flood = overTop ? "1" : "0";
+        }
+        if (overBottom !== overFloodRef.current.bottom) {
+          overFloodRef.current.bottom = overBottom;
+          frame.dataset.floodB = overBottom ? "1" : "0";
+        }
+      }
+
       const previous = progressRef.current;
       if (
         Math.abs(next.p - previous.p) < SCROLL_EPSILON &&
@@ -345,9 +370,12 @@ export default function Landing() {
 
       const meet = Math.min(1, next.p / 0.85);
       const sw = clamp01((next.p - 0.85) / 0.12);
-      const pieceOpacity = 1 - sw;
-      const fullOpacity = sw;
-      const nextMonoStage = next.p >= 0.97 ? "full" : next.p >= 0.8 ? "both" : "pieces";
+      // No full-logo crossfade: the J/L pieces slide in and freeze at the merged
+      // position. They stay visible (full logo is never shown) and fade out
+      // bottom-up with --f on the way down.
+      const fullOpacity = 0;
+      const pieceOpacity = 1;
+      const nextMonoStage = "pieces";
       if (nextMonoStage !== monoStageRef.current) {
         monoStageRef.current = nextMonoStage;
         setMonoStage(nextMonoStage);
@@ -359,8 +387,8 @@ export default function Landing() {
       setCssVar(frame, "--nav-opacity", next.q > 0 ? "1" : "0");
       setCssVar(frame, "--nav-fill", String(clamp01((next.q - 0.7) / 0.3)));
       setCssVar(frame, "--work-x", `${(-wx).toFixed(2)}px`);
-      setCssVar(frame, "--j-x", `${(-170 + meet * 90).toFixed(3)}%`);
-      setCssVar(frame, "--l-x", `${(69 - meet * 84).toFixed(3)}%`);
+      setCssVar(frame, "--j-x", `${(-185 + meet * 105).toFixed(3)}%`);
+      setCssVar(frame, "--l-x", `${(85 - meet * 100).toFixed(3)}%`);
       setCssVar(frame, "--piece-opacity", String(pieceOpacity));
       setCssVar(frame, "--full-opacity", String(fullOpacity));
       setCssVar(frame, "--intro-right-x", `${(next.p * 60).toFixed(3)}vw`);
@@ -456,6 +484,24 @@ export default function Landing() {
     <div className="frame" ref={frameRef}>
       <div className="grid-page" />
 
+      {/* Flood: anchored in the document (scrolls with the page, doesn't stick
+          to the screen). Back = opaque fill behind the photos; front = a
+          translucent sheet over them so the lower photos look submerged. */}
+      <div className="flood flood--back" aria-hidden ref={floodRef}>
+        <div className="liquid-inner">
+          <div className="liquid-wave one" />
+          <div className="liquid-wave two" />
+          <div className="liquid-body" />
+        </div>
+      </div>
+      <div className="flood flood--front" aria-hidden>
+        <div className="liquid-inner">
+          <div className="liquid-wave one" />
+          <div className="liquid-wave two" />
+          <div className="liquid-body" />
+        </div>
+      </div>
+
       <div className="wordmark">
         jazztinn
         <br />
@@ -480,6 +526,15 @@ export default function Landing() {
         ))}
       </svg>
 
+      {/* top-right: menu button */}
+      <div className="topbar">
+        <button className="menu-btn" aria-label="Menu">
+          <span />
+          <span />
+        </button>
+      </div>
+
+      {/* bottom-center: theme + sound toggles */}
       <div className="toolbar">
         <button
           className="icon-btn"
@@ -616,6 +671,14 @@ export default function Landing() {
               </figure>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* trailing space: lets the carousel finish, then the liquid floods in */}
+      <section className="outro" aria-hidden>
+        <div className="outro-line" />
+        <div className="outro-fog">
+          {ready && <SmokeRing {...OUTRO_FOG} />}
         </div>
       </section>
     </div>

@@ -331,6 +331,15 @@ body {
   from { stroke-dashoffset: 0; }
   to   { stroke-dashoffset: 1; }
 }
+/* faint gray full outline behind the moving segment = a trail/track */
+.loader-logo path.loader-track {
+  fill: none;
+  stroke: #c4c4c4;
+  opacity: 0.4;
+  stroke-dasharray: none;
+  stroke-dashoffset: 0;
+  animation: none;
+}
 
 /* ---- pinned intro ---- */
 .intro {
@@ -368,13 +377,13 @@ body {
   letter-spacing: -0.01em;
   text-transform: uppercase;
   color: #ffffff;                 /* white text */
-  background: #d61f26;            /* red ribbon */
+  background: #111111;            /* black ribbon */
   padding: 0.18em 0;
 }
-/* ribbon-less variant: red text, no background */
+/* ribbon-less variant: black text, no background */
 .intro-text-row--naked {
   background: transparent;
-  color: #d61f26;
+  color: #111111;
 }
 .intro-text-drift { display: inline-flex; will-change: transform; }
 .intro-text-drift--right { transform: translateX(var(--intro-right-x)); }
@@ -481,8 +490,21 @@ body {
 /* ---- work: scroll-driven horizontal carousel ---- */
 .outro {
   position: relative;
-  z-index: 10;
+  z-index: 12; /* above the flood so the fog/line show on the orange */
   height: 170vh;
+}
+/* beige halftone over the entire orange flood */
+.flood-fog {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -20vh;
+  height: 210vh;       /* matches the flood so it covers the whole orange */
+  z-index: 12;         /* above the flood layers */
+  pointer-events: none;
+  /* soft fade in at the waterline (top of the flood) */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 8%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 8%);
 }
 .work {
   position: relative;

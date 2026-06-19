@@ -90,7 +90,7 @@ function normalizeWheelDelta(event) {
 const WORK_ITEMS = [
   {
     id: "datalink booth",
-    label: "EXPLAINING THE BOOTH, 2024",
+    label: "COLLEGE MONTH BOOTH, 2025",
     size: "tall",
     src: "/work/datalink-booth.jpg",
     alt: "Datalink booth presentation with printed materials and neon display",
@@ -98,15 +98,18 @@ const WORK_ITEMS = [
   },
   {
     id: "live drawing",
-    label: "DRAWING, 2024",
-    size: "wide",
+    label: "CANDID MOMENT, #1",
+    size: "small",
     src: "/work/live-drawing.jpg",
     alt: "Close-up of live marker drawing on a display board",
     position: "center",
+    quote: "To strive, to seek, to find, and not to yield.",
+    quoteBy: "Ulysses",
+    tone: "warm-duotone",
   },
   {
     id: "group portrait",
-    label: "WITH THE TEAM, 2023",
+    label: "WITH THE TEAM, 2026",
     size: "small",
     src: "/work/group-portrait.jpg",
     alt: "Group portrait outdoors beneath flowering trees",
@@ -114,7 +117,7 @@ const WORK_ITEMS = [
   },
   {
     id: "candid drink",
-    label: "OFF THE CLOCK, 2025",
+    label: "OFF THE CLOCK, 2024",
     size: "tall",
     src: "/work/candid-drink.jpg",
     alt: "Candid outdoor portrait holding a drink",
@@ -122,7 +125,7 @@ const WORK_ITEMS = [
   },
   {
     id: "helmet walk",
-    label: "OUT & ABOUT, 2025",
+    label: "OUT & ABOUT, 2026",
     size: "wide",
     src: "/work/helmet-walk.jpg",
     alt: "Person walking outside wearing a stylized helmet",
@@ -153,6 +156,7 @@ export default function Landing() {
   // their (main-thread) init doesn't freeze the loader animation.
   const [ready, setReady] = useState(false);
   const [monoStage, setMonoStage] = useState("pieces");
+  const [menuOpen, setMenuOpen] = useState(false);
   const progressRef = useRef({ p: -1, q: -1, f: -1, wx: -1 });
   const monoStageRef = useRef("pieces");
   const rafRef = useRef(0);
@@ -529,11 +533,30 @@ export default function Landing() {
 
       {/* top-right: menu button */}
       <div className="topbar">
-        <button className="menu-btn" aria-label="Menu">
+        <button
+          className={`menu-btn${menuOpen ? " menu-btn--open" : ""}`}
+          aria-label="Menu"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((o) => !o)}
+        >
           <span />
           <span />
         </button>
       </div>
+
+      {/* menu modal: slides down from the top, rounded bottom edge */}
+      <div className={`menu-modal${menuOpen ? " menu-modal--open" : ""}`} aria-hidden={!menuOpen}>
+        <nav className="menu-modal-nav">
+          <a href="#" onClick={() => setMenuOpen(false)}>work</a>
+          <a href="#" onClick={() => setMenuOpen(false)}>about</a>
+          <a href="#" onClick={() => setMenuOpen(false)}>contact</a>
+        </nav>
+      </div>
+      <div
+        className={`menu-scrim${menuOpen ? " menu-scrim--open" : ""}`}
+        onClick={() => setMenuOpen(false)}
+        aria-hidden
+      />
 
       {/* bottom-center: theme + sound toggles */}
       <div className="toolbar">
@@ -651,18 +674,24 @@ export default function Landing() {
             ref={trackRef}
           >
             <div className="work-intro">
-              <h2>daily life</h2>
+              <h2>day in my life</h2>
               <p className="muted">
-                candid moments — booth talks,
+                candid moments, friends,
                 <br />
-                drawing, meetings, and in-between
+                orgs, hobbies, and in-between
               </p>
             </div>
             {WORK_ITEMS.map((it) => (
               <figure key={it.id} className={`work-item work-item--${it.size}`}>
+                {it.quote && (
+                  <blockquote className="work-quote">
+                    {it.quote}
+                    <cite>— {it.quoteBy}</cite>
+                  </blockquote>
+                )}
                 <span className="work-cap">{it.label}</span>
                 <img
-                  className="work-photo"
+                  className={`work-photo${it.tone ? ` work-photo--${it.tone}` : ""}`}
                   src={it.src}
                   alt={it.alt}
                   loading="lazy"

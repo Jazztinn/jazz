@@ -82,6 +82,15 @@ export default function Loader() {
   return (
     <div className={`loader${done ? " loader--done" : ""}`} aria-hidden>
       <svg className="loader-logo" viewBox="0 0 831 509">
+        {/* faint full-outline track so the moving segment leaves a trail */}
+        {PATHS.map((d, i) => (
+          <path
+            key={`track-${i}`}
+            className="loader-track"
+            d={d}
+            transform={i === 1 ? "translate(341,0)" : undefined}
+          />
+        ))}
         {PATHS.map((d, i) => (
           <path
             key={i}

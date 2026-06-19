@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { LiquidMetal, SmokeRing } from "@paper-design/shaders-react";
+import { LiquidMetal, SmokeRing, Dithering } from "@paper-design/shaders-react";
 import { SunIcon, MoonIcon, SoundIcon } from "@/components/Icons";
 
 const EMPTY_CLIP = "polygon(0 0, 0 0, 0 0)";
@@ -31,18 +31,15 @@ const SOCIAL_SHADER = {
   style: { width: "100%", height: "100%" },
 };
 
-// Beige duotone smoke drifting over the orange flood, below the white line.
+// Beige dithering drifting over the orange flood — duotone, contrasting.
 const OUTRO_FOG = {
-  speed: 0.6,
-  scale: 1.3,
-  noiseScale: 1.6,
-  thickness: 1.1,
-  radius: 0.6,
-  innerShape: 0.8,
-  colors: ["#efe4cb", "#e2d2ab", "#d8c49a"],
+  shape: "warp",
+  type: "4x4",
+  pxSize: 2.5,
+  speed: 0.4,
+  scale: 1.1,
   colorBack: "#00000000",
-  maxPixelCount: 9000,
-  minPixelRatio: 1,
+  colorFront: "#efe4cb",
   style: { width: "100%", height: "100%" },
 };
 
@@ -136,13 +133,13 @@ const WORK_ITEMS = [
 // silver / chrome liquid metal, masked to each glyph SVG
 const METAL = {
   colorBack: "#00000000",
-  colorTint: "#cfcfcf",
-  repetition: 4,
-  softness: 0.3,
+  colorTint: "#fbfcff",   // near-white cool = bright polished silver
+  repetition: 6,          // more chrome bands = chromier
+  softness: 0.22,
   shiftRed: 0,      // no chromatic dispersion (was the "glitchy" rainbow)
   shiftBlue: 0,
-  distortion: 0.12,
-  contour: 0.8,
+  distortion: 0.09,
+  contour: 0.55,          // less dark valleys = brighter overall
   speed: 0.5,
   fit: "contain",
   scale: 1,
@@ -501,6 +498,10 @@ export default function Landing() {
           <div className="liquid-body" />
         </div>
       </div>
+      {/* beige halftone over the whole orange flood */}
+      <div className="flood-fog" aria-hidden>
+        {ready && <Dithering {...OUTRO_FOG} />}
+      </div>
 
       <div className="wordmark">
         jazztinn
@@ -675,12 +676,7 @@ export default function Landing() {
       </section>
 
       {/* trailing space: lets the carousel finish, then the liquid floods in */}
-      <section className="outro" aria-hidden>
-        <div className="outro-line" />
-        <div className="outro-fog">
-          {ready && <SmokeRing {...OUTRO_FOG} />}
-        </div>
-      </section>
+      <section className="outro" aria-hidden />
     </div>
   );
 }

@@ -469,7 +469,6 @@ export default function Landing() {
       }
       const scrollCueProgress = clamp01(window.scrollY / (vh * 0.2));
       setCssVar(frame, "--scroll-cue", String(1 - scrollCueProgress));
-      setCssVar(frame, "--scroll-cue-scale", (1 - scrollCueProgress * 0.62).toFixed(3));
       // work gallery: vertical scroll through the section drives a horizontal
       // translate of the track (cards move left). Lando-style scroll carousel.
       let wx = 0;
@@ -736,9 +735,11 @@ export default function Landing() {
       <div className="scrollbar-track" aria-hidden />
       <div className="scrollbar-thumb" aria-hidden />
       <div className="scroll-cue" aria-hidden>
-        <svg viewBox="0 0 100 100" role="presentation">
-          <path d="M50 8v70M15 48l35 35 35-35" />
-        </svg>
+        <span className="scroll-cue__stem" />
+        <span className="scroll-cue__head">
+          <span className="scroll-cue__arm scroll-cue__arm--left" />
+          <span className="scroll-cue__arm scroll-cue__arm--right" />
+        </span>
       </div>
 
       {/* handwriting "a day in my life" — draws on with scroll into the empty

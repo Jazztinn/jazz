@@ -128,6 +128,8 @@ const WORK_ITEMS = [
     position: "center",
     width: 1600,
     height: 1200,
+    placeholderQuote: "A reader lives a thousand lives before he dies. The man who never reads lives only one.",
+    placeholderQuoteBy: "George R. R. Martin",
   },
   {
     id: "placeholder fill",
@@ -196,7 +198,7 @@ export default function Landing() {
   const floodShaderActiveRef = useRef(false);
   const introShadersActiveRef = useRef(true);
   const handwritingProgressRef = useRef(-1);
-  const layoutMetricsRef = useRef({ vh: 0, docHeight: 0, maxScroll: 0, workHeight: 0, maxWorkX: 0 });
+  const layoutMetricsRef = useRef({ vh: 0, docHeight: 0, maxScroll: 0, workHeight: 0, workStart: 0, maxWorkX: 0 });
   const rafRef = useRef(0);
   const sloshRef = useRef({ y: 0, t: 0 });
   const floodRef = useRef(null);
@@ -214,6 +216,7 @@ export default function Landing() {
   const writeCanvasRef = useRef(null);     // canvas for handwriting nib replay
   const writeDataRef = useRef(null);       // parsed capture JSON
   const requestScrollUpdateRef = useRef(null);
+  const vhDevRef = useRef(null);
 
   function openMenu() {
     setMenuClosing(false);
@@ -449,6 +452,7 @@ export default function Landing() {
         docHeight,
         maxScroll: Math.max(0, docHeight - vh),
         workHeight: sec?.offsetHeight || 0,
+        workStart: sec ? window.scrollY + sec.getBoundingClientRect().top : 0,
         maxWorkX: track ? Math.max(0, track.scrollWidth - window.innerWidth) : 0,
       };
     }
@@ -460,20 +464,24 @@ export default function Landing() {
 
       const metrics = layoutMetricsRef.current;
       const vh = metrics.vh || window.innerHeight;
+      if (vhDevRef.current) {
+        vhDevRef.current.textContent = `${(window.scrollY / vh).toFixed(3)} vh`;
+      }
+      const scrollCueProgress = clamp01(window.scrollY / (vh * 0.2));
+      setCssVar(frame, "--scroll-cue", String(1 - scrollCueProgress));
+      setCssVar(frame, "--scroll-cue-scale", (1 - scrollCueProgress * 0.62).toFixed(3));
       // work gallery: vertical scroll through the section drives a horizontal
       // translate of the track (cards move left). Lando-style scroll carousel.
       let wx = 0;
       let workProg = 0;
-      let workRawProg = 0;
-      const sec = workRef.current, track = trackRef.current;
-      if (sec && track) {
+      if (workRef.current && trackRef.current) {
         // Tie carousel progress to the section's own sticky range so it finishes
         // exactly when the pin releases — no dead scroll, normal scroll resumes.
         // `lead` lets it start moving ~1 viewport before the section pins.
-        const rect = sec.getBoundingClientRect();
         const lead = vh * 1.0;
         const span = metrics.workHeight - vh + lead;
-        workRawProg = span > 0 ? (lead - rect.top) / span : 0; // unclamped, grows past 1
+        const workTop = metrics.workStart - window.scrollY;
+        const workRawProg = span > 0 ? (lead - workTop) / span : 0;
         workProg = clamp01(workRawProg);
         wx = workProg * metrics.maxWorkX;
       }
@@ -520,9 +528,9 @@ export default function Landing() {
       const fl = floodRef.current;
       if (fl) {
         const top = fl.getBoundingClientRect().top;
-        // Mount before the long dither fade reaches the viewport, then keep it
-        // alive only while the flood can contribute to the page.
-        const floodShouldBeActive = top <= vh * 2;
+        // Start at a deliberate document position so the dither is fully ready
+        // when the flood reaches the gallery's closing sequence.
+        const floodShouldBeActive = window.scrollY >= vh * 2.8;
         if (floodShouldBeActive !== floodShaderActiveRef.current) {
           floodShaderActiveRef.current = floodShouldBeActive;
           setFloodShaderActive(floodShouldBeActive);
@@ -557,6 +565,20 @@ export default function Landing() {
         return;
       }
       progressRef.current = next;
+
+      // By 1.4 viewports the hero and handwriting sequences are complete. The
+      // carousel only needs its track position and the scrollbar from here;
+      // skip the intro's masks and geometry reads. The nav logo still needs to
+      // finish its trace and fill during the first part of this range.
+      if (window.scrollY >= vh * 1.4) {
+        setCssVar(frame, "--work-x", `${(-wx).toFixed(2)}px`);
+        setCssVar(frame, "--scroll-frac", String(metrics.maxScroll > 0 ? clamp01(window.scrollY / metrics.maxScroll) : 0));
+        setCssVar(frame, "--scroll-vis", String(metrics.docHeight > 0 ? Math.min(1, vh / metrics.docHeight) : 1));
+        setCssVar(frame, "--q", String(next.q));
+        setCssVar(frame, "--nav-opacity", next.q > 0 ? "1" : "0");
+        setCssVar(frame, "--nav-fill", String(clamp01((next.q - 0.7) / 0.3)));
+        return;
+      }
 
       const meet = Math.min(1, next.p / 0.425);
       const sw = clamp01((next.p - 0.46) / 0.2);
@@ -713,10 +735,16 @@ export default function Landing() {
       {/* custom right-edge scrollbar */}
       <div className="scrollbar-track" aria-hidden />
       <div className="scrollbar-thumb" aria-hidden />
+      <div className="scroll-cue" aria-hidden>
+        <svg viewBox="0 0 100 100" role="presentation">
+          <path d="M50 8v70M15 48l35 35 35-35" />
+        </svg>
+      </div>
 
       {/* handwriting "a day in my life" — draws on with scroll into the empty
           space once the JL shader has faded. Markup injected from captured SVG. */}
       <canvas className="handwriting" ref={writeCanvasRef} aria-hidden />
+      <div className="vh-dev" ref={vhDevRef} aria-hidden>0.000 vh</div>
 
       {/* Flood: anchored in the document (scrolls with the page, doesn't stick
           to the screen). Back = opaque fill behind the photos; front = a
@@ -969,7 +997,7 @@ export default function Landing() {
       </section>
 
       {/* work: vertical scroll drives a horizontal carousel of staggered cards */}
-      <section className="work content-warp" ref={workRef}>
+      <section className="work" ref={workRef}>
         <div className="work-pin">
           <div
             className="work-track"
@@ -993,6 +1021,12 @@ export default function Landing() {
                       decoding="async"
                       style={{ objectPosition: it.position }}
                     />
+                    {it.placeholderQuote && (
+                      <blockquote className="work-quote">
+                        {it.placeholderQuote}
+                        <cite>— {it.placeholderQuoteBy}</cite>
+                      </blockquote>
+                    )}
                   </figure>
                 ))}
               </div>

@@ -6,8 +6,8 @@ import { SunIcon, MoonIcon, SoundIcon } from "@/components/Icons";
 
 const EMPTY_CLIP = "polygon(0 0, 0 0, 0 0)";
 const SCROLL_EPSILON = 0.001;
-const SMOOTH_SCROLL_EASE = 0.075;
-const MOUSE_WHEEL_MULTIPLIER = 1.15;
+const SMOOTH_SCROLL_EASE = 0.14;
+const MOUSE_WHEEL_MULTIPLIER = 1.05;
 
 const loadShaders = () => import("@paper-design/shaders-react");
 
@@ -70,8 +70,7 @@ function clamp(value, min, max) {
 function isScrollableElement(element) {
   if (!(element instanceof Element)) return false;
   const style = window.getComputedStyle(element);
-  const canScrollY = /(auto|scroll|overlay)/.test(style.overflowY);
-  return canScrollY && element.scrollHeight > element.clientHeight;
+  return /(auto|scroll|overlay)/.test(style.overflowY) && element.scrollHeight > element.clientHeight;
 }
 
 function closestScrollableElement(target) {
@@ -86,9 +85,7 @@ function closestScrollableElement(target) {
 function shouldSmoothWheel(event) {
   if (event.defaultPrevented || event.ctrlKey || event.metaKey) return false;
   if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return false;
-  if (event.target?.closest?.("input, textarea, select, [contenteditable]")) return false;
-
-  return event.deltaY !== 0;
+  return event.deltaY !== 0 && !event.target?.closest?.("input, textarea, select, [contenteditable]");
 }
 
 function normalizeWheelDelta(event) {
@@ -133,6 +130,18 @@ const WORK_ITEMS = [
     height: 1200,
   },
   {
+    id: "placeholder fill",
+    label: "IN THE MOMENT, 2025",
+    size: "wide",
+    src: "/work/helmet-walk.jpg",
+    alt: "Placeholder photo",
+    position: "center",
+    width: 1200,
+    height: 1600,
+    quote: "Still round the corner there may wait a new road or a secret gate.",
+    quoteBy: "J.R.R. Tolkien",
+  },
+  {
     id: "candid drink",
     label: "OFF THE CLOCK, 2024",
     size: "tall",
@@ -151,6 +160,8 @@ const WORK_ITEMS = [
     position: "center",
     width: 1200,
     height: 1600,
+    quote: "Not all those who wander are lost.",
+    quoteBy: "J.R.R. Tolkien",
   },
 ];
 const WORK_PLACEHOLDER_ITEMS = WORK_ITEMS.slice(0, 3);
@@ -180,8 +191,12 @@ export default function Landing() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuClosing, setMenuClosing] = useState(false);
   const [floodShaderActive, setFloodShaderActive] = useState(false);
+  const [introShadersActive, setIntroShadersActive] = useState(true);
   const progressRef = useRef({ p: -1, q: -1, f: -1, wx: -1 });
   const floodShaderActiveRef = useRef(false);
+  const introShadersActiveRef = useRef(true);
+  const handwritingProgressRef = useRef(-1);
+  const layoutMetricsRef = useRef({ vh: 0, docHeight: 0, maxScroll: 0, workHeight: 0, maxWorkX: 0 });
   const rafRef = useRef(0);
   const sloshRef = useRef({ y: 0, t: 0 });
   const floodRef = useRef(null);
@@ -199,7 +214,6 @@ export default function Landing() {
   const writeCanvasRef = useRef(null);     // canvas for handwriting nib replay
   const writeDataRef = useRef(null);       // parsed capture JSON
   const requestScrollUpdateRef = useRef(null);
-  const vhDevRef = useRef(null);           // dev overlay: current scroll in vh
 
   function openMenu() {
     setMenuClosing(false);
@@ -213,6 +227,7 @@ export default function Landing() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
+    handwritingProgressRef.current = -1;
     requestScrollUpdateRef.current && requestScrollUpdateRef.current();
   }, [dark]);
 
@@ -270,57 +285,43 @@ export default function Landing() {
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     const state = smoothScrollRef.current;
 
-    function maxScroll() {
-      return Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-    }
-
-    function stopSmoothScroll() {
+    function stop() {
       state.active = false;
-      if (state.raf) {
-        window.cancelAnimationFrame(state.raf);
-        state.raf = 0;
-      }
+      if (state.raf) window.cancelAnimationFrame(state.raf);
+      state.raf = 0;
     }
 
     function tick() {
-      const diff = state.target - state.current;
-      if (Math.abs(diff) < 0.5) {
+      const difference = state.target - state.current;
+      if (Math.abs(difference) < 0.35) {
         state.current = state.target;
         window.scrollTo(0, state.target);
-        stopSmoothScroll();
+        stop();
         return;
       }
-
-      state.current += diff * SMOOTH_SCROLL_EASE;
+      state.current += difference * SMOOTH_SCROLL_EASE;
       window.scrollTo(0, state.current);
       state.raf = window.requestAnimationFrame(tick);
     }
 
-    function startSmoothScroll() {
-      if (!state.raf) {
-        state.raf = window.requestAnimationFrame(tick);
-      }
-    }
-
     function onWheel(event) {
-      if (motionQuery.matches || !shouldSmoothWheel(event)) return;
-
-      if (closestScrollableElement(event.target)) return;
-
+      if (motionQuery.matches || !shouldSmoothWheel(event) || closestScrollableElement(event.target)) return;
       event.preventDefault();
       if (!state.active) {
         state.current = window.scrollY;
         state.target = window.scrollY;
         state.active = true;
       }
-      state.target = clamp(state.target + normalizeWheelDelta(event), 0, maxScroll());
-      startSmoothScroll();
+      const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      state.target = clamp(state.target + normalizeWheelDelta(event), 0, maxScroll);
+      if (!state.raf) state.raf = window.requestAnimationFrame(tick);
     }
 
     function syncNativeScroll() {
-      if (state.active) return;
-      state.current = window.scrollY;
-      state.target = window.scrollY;
+      if (!state.active) {
+        state.current = window.scrollY;
+        state.target = window.scrollY;
+      }
     }
 
     syncNativeScroll();
@@ -331,7 +332,7 @@ export default function Landing() {
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("scroll", syncNativeScroll);
       window.removeEventListener("resize", syncNativeScroll);
-      stopSmoothScroll();
+      stop();
     };
   }, []);
 
@@ -358,6 +359,8 @@ export default function Landing() {
   // intro is pinned). p: 0 = split, 1 = merged. Past p=1 the intro unpins and
   // the page scrolls normally to the content below.
   useEffect(() => {
+    const reduceMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+
     function setStyleIfChanged(element, property, value) {
       if (element && element.style[property] !== value) {
         element.style[property] = value;
@@ -436,12 +439,27 @@ export default function Landing() {
       }
     }
 
+    function refreshLayoutMetrics() {
+      const vh = window.innerHeight;
+      const sec = workRef.current;
+      const track = trackRef.current;
+      const docHeight = document.documentElement.scrollHeight;
+      layoutMetricsRef.current = {
+        vh,
+        docHeight,
+        maxScroll: Math.max(0, docHeight - vh),
+        workHeight: sec?.offsetHeight || 0,
+        maxWorkX: track ? Math.max(0, track.scrollWidth - window.innerWidth) : 0,
+      };
+    }
+
     function updateScrollProgress() {
       rafRef.current = 0;
       const frame = frameRef.current;
       if (!frame) return;
 
-      const vh = window.innerHeight;
+      const metrics = layoutMetricsRef.current;
+      const vh = metrics.vh || window.innerHeight;
       // work gallery: vertical scroll through the section drives a horizontal
       // translate of the track (cards move left). Lando-style scroll carousel.
       let wx = 0;
@@ -454,19 +472,19 @@ export default function Landing() {
         // `lead` lets it start moving ~1 viewport before the section pins.
         const rect = sec.getBoundingClientRect();
         const lead = vh * 1.0;
-        const span = sec.offsetHeight - vh + lead;
+        const span = metrics.workHeight - vh + lead;
         workRawProg = span > 0 ? (lead - rect.top) / span : 0; // unclamped, grows past 1
         workProg = clamp01(workRawProg);
-        wx = workProg * Math.max(0, track.scrollWidth - window.innerWidth);
+        wx = workProg * metrics.maxWorkX;
       }
 
       const next = {
         p: clamp01(window.scrollY / vh),
         // Logo traces in only AFTER the greeting is fully wiped and the merged
         // JL has scrolled away: start at 1.55 viewports.
-        q: clamp01((window.scrollY - vh * 1.55) / (vh * 0.5)),
+        q: clamp01((window.scrollY - vh * 1.05) / (vh * 0.5)),
         // merged JL fades to white from the bottom up (1.0 -> 1.6 viewports).
-        f: clamp01((window.scrollY - vh * 1.0) / (vh * 0.6)),
+        f: clamp01((window.scrollY - vh * 0.5) / (vh * 0.6)),
         wx,
       };
       // These run EVERY frame (before the early-return below), because the flood
@@ -480,13 +498,30 @@ export default function Landing() {
       sl.y = window.scrollY;
       sl.t = now;
       setCssVar(frame, "--slosh", `${clamp(-vel * 2.5, -3.5, 3.5).toFixed(2)}deg`);
+      // Use the rendered scroll velocity for a small elastic response. The
+      // page continues to scroll normally; this only distorts content briefly.
+      if (!reduceMotionQuery.matches && Math.abs(vel) > 0.01) {
+        const warp = clamp(-vel * 0.16, -0.42, 0.42);
+        setCssVar(frame, "--page-warp-skew", `${warp.toFixed(3)}deg`);
+        setCssVar(frame, "--page-warp-y", `${clamp(-vel * 0.8, -2.5, 2.5).toFixed(2)}px`);
+        setCssVar(frame, "--page-warp-scale-y", (1 + Math.abs(warp) * 0.0035).toFixed(4));
+        frame.dataset.warping = "1";
+      }
       if (sl.settle) clearTimeout(sl.settle);
-      sl.settle = setTimeout(() => setCssVar(frame, "--slosh", "0deg"), 110);
+      sl.settle = setTimeout(() => {
+        setCssVar(frame, "--slosh", "0deg");
+        setCssVar(frame, "--page-warp-skew", "0deg");
+        setCssVar(frame, "--page-warp-y", "0px");
+        setCssVar(frame, "--page-warp-scale-y", "1");
+        delete frame.dataset.warping;
+      }, 110);
       // top UI turns white once the waterline rises above the top bar; bottom
       // toggles turn white once it rises above the bottom toggles.
       const fl = floodRef.current;
       if (fl) {
         const top = fl.getBoundingClientRect().top;
+        // Mount before the long dither fade reaches the viewport, then keep it
+        // alive only while the flood can contribute to the page.
         const floodShouldBeActive = top <= vh * 2;
         if (floodShouldBeActive !== floodShaderActiveRef.current) {
           floodShaderActiveRef.current = floodShouldBeActive;
@@ -504,6 +539,14 @@ export default function Landing() {
         }
       }
 
+      // The intro's WebGL layers are visually gone after this point, but each
+      // instance continues to render unless it is explicitly unmounted.
+      const introShouldBeActive = window.scrollY < vh * 1.4;
+      if (introShouldBeActive !== introShadersActiveRef.current) {
+        introShadersActiveRef.current = introShouldBeActive;
+        setIntroShadersActive(introShouldBeActive);
+      }
+
       const previous = progressRef.current;
       if (
         Math.abs(next.p - previous.p) < SCROLL_EPSILON &&
@@ -515,8 +558,8 @@ export default function Landing() {
       }
       progressRef.current = next;
 
-      const meet = Math.min(1, next.p / 0.85);
-      const sw = clamp01((next.p - 0.85) / 0.12);
+      const meet = Math.min(1, next.p / 0.425);
+      const sw = clamp01((next.p - 0.46) / 0.2);
       // No full-logo crossfade: the J/L pieces slide in and freeze at the merged
       // position. They stay visible (full logo is never shown) and fade out
       // bottom-up with --f on the way down.
@@ -529,21 +572,30 @@ export default function Landing() {
 
       // handwriting draw-on: begins as the merged JL fade (--f) passes ~0.8 and
       // the center clears, then "writes" over the next ~0.85 viewport of scroll.
-      const writeStart = vh * 1.2; // earlier — as the JL fade gets going
-      const write = clamp01((window.scrollY - writeStart) / (vh * 0.435));
-      if (vhDevRef.current) {
-        vhDevRef.current.textContent =
-          `${(window.scrollY / vh).toFixed(3)} vh · write ${write.toFixed(2)}`;
-      }
+      const writeStart = vh * 0.85; // earlier — as the JL fade gets going
+      const write = clamp01((window.scrollY - writeStart) / (vh * 0.278));
       setCssVar(frame, "--write", String(write));
-      drawHandwriting(write);
+      const previousWrite = handwritingProgressRef.current;
+      if (
+        previousWrite < 0 ||
+        Math.abs(write - previousWrite) >= 0.005 ||
+        (write === 1 && previousWrite !== 1)
+      ) {
+        handwritingProgressRef.current = write;
+        drawHandwriting(write);
+      }
 
-      const docH = document.documentElement.scrollHeight;
-      const maxY = Math.max(0, docH - vh);
-      setCssVar(frame, "--scroll-frac", String(maxY > 0 ? clamp01(window.scrollY / maxY) : 0));
-      setCssVar(frame, "--scroll-vis", String(docH > 0 ? Math.min(1, vh / docH) : 1));
-      setCssVar(frame, "--j-x", `${(-230 + meet * 150).toFixed(3)}%`);
-      setCssVar(frame, "--l-x", `${(130 - meet * 145).toFixed(3)}%`);
+      // fade the handwriting out with the SAME bottom-up wipe as the marquees,
+      // starting at 1.78vh.
+      const wipe = clamp01((window.scrollY - vh * 1.16) / (vh * 0.2));
+      const writeWipe = `linear-gradient(to left, transparent ${(wipe * 125 - 25).toFixed(2)}%, #000 ${(wipe * 125).toFixed(2)}%)`;
+      setStyleIfChanged(writeCanvasRef.current, "maskImage", writeWipe);
+      setStyleIfChanged(writeCanvasRef.current, "webkitMaskImage", writeWipe);
+
+      setCssVar(frame, "--scroll-frac", String(metrics.maxScroll > 0 ? clamp01(window.scrollY / metrics.maxScroll) : 0));
+      setCssVar(frame, "--scroll-vis", String(metrics.docHeight > 0 ? Math.min(1, vh / metrics.docHeight) : 1));
+      setCssVar(frame, "--j-x", `${(-385 + meet * 305).toFixed(3)}%`);
+      setCssVar(frame, "--l-x", `${(300 - meet * 315).toFixed(3)}%`);
       setCssVar(frame, "--intro-right-x", `${(next.p * 60).toFixed(3)}vw`);
       setCssVar(frame, "--intro-left-x", `${(-next.p * 60).toFixed(3)}vw`);
       setCssVar(frame, "--mono-mask-start", `${(next.f * 125 - 25).toFixed(3)}%`);
@@ -622,12 +674,17 @@ export default function Landing() {
     }
     requestScrollUpdateRef.current = requestScrollUpdate;
 
+    refreshLayoutMetrics();
     updateScrollProgress();
     window.addEventListener("scroll", requestScrollUpdate, { passive: true });
+    window.addEventListener("resize", refreshLayoutMetrics);
     window.addEventListener("resize", requestScrollUpdate);
+    window.addEventListener("load", refreshLayoutMetrics, { once: true });
     return () => {
       window.removeEventListener("scroll", requestScrollUpdate);
+      window.removeEventListener("resize", refreshLayoutMetrics);
       window.removeEventListener("resize", requestScrollUpdate);
+      window.removeEventListener("load", refreshLayoutMetrics);
       if (rafRef.current) {
         window.cancelAnimationFrame(rafRef.current);
       }
@@ -636,6 +693,21 @@ export default function Landing() {
 
   return (
     <div className="frame" ref={frameRef}>
+      {/* duotone filter: shadows -> black, highlights -> orange (#ff7a18) */}
+      <svg width="0" height="0" aria-hidden style={{ position: "absolute" }}>
+        <filter id="duotone" colorInterpolationFilters="sRGB">
+          <feColorMatrix
+            type="matrix"
+            values="0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0 0 0 1 0"
+          />
+          <feComponentTransfer>
+            <feFuncR type="table" tableValues="0.24 0.86 1" />
+            <feFuncG type="table" tableValues="0.12 0.54 0.72" />
+            <feFuncB type="table" tableValues="0.03 0.2 0.32" />
+          </feComponentTransfer>
+        </filter>
+      </svg>
+
       <div className="grid-page" />
 
       {/* custom right-edge scrollbar */}
@@ -646,19 +718,17 @@ export default function Landing() {
           space once the JL shader has faded. Markup injected from captured SVG. */}
       <canvas className="handwriting" ref={writeCanvasRef} aria-hidden />
 
-      <div className="vh-dev" ref={vhDevRef} aria-hidden>0 vh</div>
-
       {/* Flood: anchored in the document (scrolls with the page, doesn't stick
           to the screen). Back = opaque fill behind the photos; front = a
           translucent sheet over them so the lower photos look submerged. */}
-      <div className="flood flood--back" aria-hidden ref={floodRef}>
+      <div className="flood flood--back content-warp" aria-hidden ref={floodRef}>
         <div className="liquid-inner">
           <div className="liquid-wave one" />
           <div className="liquid-wave two" />
           <div className="liquid-body" />
         </div>
       </div>
-      <div className="flood flood--front" aria-hidden>
+      <div className="flood flood--front content-warp" aria-hidden>
         <div className="liquid-inner">
           <div className="liquid-wave one" />
           <div className="liquid-wave two" />
@@ -666,7 +736,7 @@ export default function Landing() {
         </div>
       </div>
       {/* beige halftone over the whole orange flood */}
-      <div className="flood-fog" aria-hidden>
+      <div className="flood-fog content-warp" aria-hidden>
         {ready && floodShaderActive && <Dithering {...OUTRO_FOG} />}
       </div>
 
@@ -812,7 +882,7 @@ export default function Landing() {
       </div>
 
       {/* pinned intro: monogram reveal + hero. Unpins after one viewport. */}
-      <section className="intro">
+      <section className="intro content-warp">
         <div className="pin">
           {/* slanted text marquee that drifts as the J/L converge — top row
               right, bottom row left, tilted opposite to the wipe ("\"). */}
@@ -848,14 +918,14 @@ export default function Landing() {
               className="mono-img mono-piece mono-j"
               style={{ aspectRatio: "516 / 509" }}
             >
-              {ready && <LiquidMetal image="/monogram/J_refined_geometric.svg" {...METAL} />}
+              {ready && introShadersActive && <LiquidMetal image="/monogram/J_refined_geometric.svg" {...METAL} />}
             </div>
             <div
               ref={lRef}
               className="mono-img mono-piece mono-l"
               style={{ aspectRatio: "490 / 509" }}
             >
-              {ready && <LiquidMetal image="/monogram/L_refined_geometric.svg" {...METAL} />}
+              {ready && introShadersActive && <LiquidMetal image="/monogram/L_refined_geometric.svg" {...METAL} />}
             </div>
             <div
               className="mono-img mono-full"
@@ -883,7 +953,7 @@ export default function Landing() {
                       WebkitMaskImage: `url(/icons/${s.id}.svg)`,
                     }}
                   >
-                    {ready && (
+                    {ready && introShadersActive && (
                       <SmokeRing
                         {...SOCIAL_SHADER}
                         colorBack={s.shader.colorBack}
@@ -899,7 +969,7 @@ export default function Landing() {
       </section>
 
       {/* work: vertical scroll drives a horizontal carousel of staggered cards */}
-      <section className="work" ref={workRef}>
+      <section className="work content-warp" ref={workRef}>
         <div className="work-pin">
           <div
             className="work-track"
@@ -926,12 +996,19 @@ export default function Landing() {
                   </figure>
                 ))}
               </div>
-              <h2>day in my life</h2>
-              <p className="muted">
-                candid moments, friends,
-                <br />
-                orgs, hobbies, and in-between
-              </p>
+              <figure className="work-item work-item--tall work-intro-photo">
+                <span className="work-cap">FIELD NOTES, 2025</span>
+                <img
+                  className="work-photo"
+                  src="/work/live-drawing.jpg"
+                  alt="Placeholder photo"
+                  width={1600}
+                  height={1200}
+                  loading="lazy"
+                  decoding="async"
+                  style={{ objectPosition: "center" }}
+                />
+              </figure>
             </div>
             {WORK_ITEMS.map((it) => (
               <figure key={it.id} className={`work-item work-item--${it.size}`}>
@@ -959,7 +1036,7 @@ export default function Landing() {
       </section>
 
       {/* trailing space: lets the carousel finish, then the liquid floods in */}
-      <section className="outro" aria-hidden />
+      <section className="outro content-warp" aria-hidden />
     </div>
   );
 }

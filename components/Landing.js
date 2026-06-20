@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { SunIcon, MoonIcon, SoundIcon } from "@/components/Icons";
+import HeroLiquid from "@/components/HeroLiquid";
 
 const EMPTY_CLIP = "polygon(0 0, 0 0, 0 0)";
 const SCROLL_EPSILON = 0.001;
@@ -244,6 +245,7 @@ export default function Landing() {
   const jRef = useRef(null);
   const lRef = useRef(null);
   const heroRef = useRef(null);
+  const heroStageRef = useRef(null);
   const writeCanvasRef = useRef(null);     // canvas for handwriting nib replay
   const writeDataRef = useRef(null);       // parsed capture JSON
   const requestScrollUpdateRef = useRef(null);
@@ -1017,7 +1019,10 @@ export default function Landing() {
           </div>
 
           <div className="hero" ref={heroRef}>
-            <h1>hi. i&rsquo;m <span>jazz.</span></h1>
+            <div className="hero-stage" ref={heroStageRef}>
+              <h1 className="hero-title">hi. i&rsquo;m <span>jazz.</span></h1>
+              <HeroLiquid dark={dark} />
+            </div>
             <p className="sub">developer / illustrator / writer</p>
             <div className="socials">
               {SOCIALS.map((s) => (

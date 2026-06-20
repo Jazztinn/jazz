@@ -607,7 +607,7 @@ body {
 .menu-modal-nav a {
   position: relative;
   width: 100%;
-  padding: 0.04em clamp(52px, 6vw, 110px);
+  padding: 0.04em clamp(52px, 6vw, 110px) 0.04em clamp(120px, 13vw, 220px);
   font-size: clamp(46px, 5.9vw, 96px);
   font-weight: 900;
   line-height: 1.02;
@@ -831,6 +831,30 @@ body {
   transform-origin: 50% 50%;
 }
 .hero h1 span { color: #ff7a18; }
+/* liquid hero: the DOM <h1> sets the box size + exposes its font size to JS via
+   --hero-fs, but is visually hidden — the WebGL canvas renders the title and
+   handles the pointer-driven flowmap distortion. */
+.hero-stage {
+  position: relative;
+  display: inline-block;
+  --hero-fs: clamp(56px, 11vw, 132px);
+}
+/* wordmark-style typography; hidden (the WebGL canvas renders the glyphs) but
+   its computed font props are read by HeroLiquid to rasterize the title. */
+.hero-title {
+  visibility: hidden;
+  font-family: var(--font-quicksand), system-ui, sans-serif;
+  font-weight: 400;
+  letter-spacing: -0.092em;
+  transform: none;
+}
+.hero-liquid-gl {
+  position: absolute;
+  /* pad so the warp/chroma fringe isn't clipped at the text edges */
+  inset: -12% -14%;
+  z-index: 1;
+  cursor: default;
+}
 .hero .sub {
   font-family: "Bodoni FLF", serif;
   font-size: clamp(18px, 2.4vw, 30px);

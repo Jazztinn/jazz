@@ -196,6 +196,10 @@ export default function Landing() {
   const jRef = useRef(null);
   const lRef = useRef(null);
   const heroRef = useRef(null);
+  const writeCanvasRef = useRef(null);     // canvas for handwriting nib replay
+  const writeDataRef = useRef(null);       // parsed capture JSON
+  const requestScrollUpdateRef = useRef(null);
+  const vhDevRef = useRef(null);           // dev overlay: current scroll in vh
 
   function openMenu() {
     setMenuClosing(false);
@@ -209,6 +213,7 @@ export default function Landing() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
+    requestScrollUpdateRef.current && requestScrollUpdateRef.current();
   }, [dark]);
 
   useEffect(() => {
@@ -232,6 +237,32 @@ export default function Landing() {
     return () => {
       window.removeEventListener("jl:loaded", onLoaded);
       clearTimeout(t);
+    };
+  }, []);
+
+  // load the captured handwriting JSON (centerline points + pressure + per-
+  // stroke timing + nib params). Replayed on a canvas with a parallelogram nib.
+  useEffect(() => {
+    let alive = true;
+    fetch("/handwriting/day-in-my-life.json")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!alive || !data || !data.strokes) return;
+        // fall back to even time slices if the capture had no timing
+        const allFlat = data.strokes.every((s) => s.tStart === 0 && s.tEnd === 1);
+        if (allFlat) {
+          const n = data.strokes.length;
+          data.strokes.forEach((s, i) => {
+            s.tStart = i / n;
+            s.tEnd = (i + 1) / n;
+          });
+        }
+        writeDataRef.current = data;
+        requestScrollUpdateRef.current && requestScrollUpdateRef.current();
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
     };
   }, []);
 
@@ -339,6 +370,72 @@ export default function Landing() {
       }
     }
 
+    // ---- handwriting nib replay (mirrors tools/handwriting-capture.html) ----
+    function nibCorners(nib, p) {
+      const a = (nib.angle * Math.PI) / 180;
+      const w = nib.weight * (0.65 + 0.7 * p);
+      const hux = (Math.cos(a) * w) / 2, huy = (Math.sin(a) * w) / 2;
+      const hvx = (Math.cos(a + Math.PI / 2) * w * nib.thick) / 2;
+      const hvy = (Math.sin(a + Math.PI / 2) * w * nib.thick) / 2;
+      return [
+        [-hux - hvx, -huy - hvy],
+        [hux - hvx, huy - hvy],
+        [hux + hvx, huy + hvy],
+        [-hux + hvx, -huy + hvy],
+      ];
+    }
+    function hull(pts) {
+      pts = pts.slice().sort((A, B) => A[0] - B[0] || A[1] - B[1]);
+      const cross = (O, A, B) => (A[0] - O[0]) * (B[1] - O[1]) - (A[1] - O[1]) * (B[0] - O[0]);
+      const lo = [], hi = [];
+      for (const p of pts) { while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+      for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (hi.length >= 2 && cross(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+      lo.pop(); hi.pop();
+      return lo.concat(hi);
+    }
+    function sweep(cx, nib, a, pa, b, pb) {
+      const ca = nibCorners(nib, pa), cb = nibCorners(nib, pb);
+      const band = [
+        ...ca.map((c) => [a[0] + c[0], a[1] + c[1]]),
+        ...cb.map((c) => [b[0] + c[0], b[1] + c[1]]),
+      ];
+      const poly = hull(band);
+      cx.beginPath();
+      cx.moveTo(poly[0][0], poly[0][1]);
+      for (let i = 1; i < poly.length; i++) cx.lineTo(poly[i][0], poly[i][1]);
+      cx.closePath();
+      cx.fill();
+    }
+    function drawHandwriting(write) {
+      const cv = writeCanvasRef.current;
+      const data = writeDataRef.current;
+      if (!cv || !data) return;
+      const VW = data.viewBox[2], VH = data.viewBox[3];
+      if (cv.width !== VW || cv.height !== VH) { cv.width = VW; cv.height = VH; }
+      const cx = cv.getContext("2d");
+      cx.clearRect(0, 0, VW, VH);
+      cx.fillStyle =
+        document.documentElement.dataset.theme === "dark" ? "#f0f0f0" : "#1a1a1a";
+      const nib = data.nib || { weight: 12, angle: 40, thick: 0.35 };
+      for (const s of data.strokes) {
+        const span = Math.max(1e-4, s.tEnd - s.tStart);
+        const local = clamp01((write - s.tStart) / span);
+        if (local <= 0) continue;
+        const pts = s.pts, pr = s.pressure || [];
+        const N = pts.length;
+        if (N === 1) { sweep(cx, nib, pts[0], pr[0] ?? 0.5, pts[0], pr[0] ?? 0.5); continue; }
+        const fpos = local * (N - 1);
+        const last = Math.floor(fpos);
+        for (let i = 1; i <= last; i++) sweep(cx, nib, pts[i - 1], pr[i - 1] ?? 0.5, pts[i], pr[i] ?? 0.5);
+        const frac = fpos - last;
+        if (last < N - 1 && frac > 0) {
+          const a = pts[last], b = pts[last + 1];
+          const bx = a[0] + (b[0] - a[0]) * frac, by = a[1] + (b[1] - a[1]) * frac;
+          sweep(cx, nib, a, pr[last] ?? 0.5, [bx, by], pr[last] ?? 0.5);
+        }
+      }
+    }
+
     function updateScrollProgress() {
       rafRef.current = 0;
       const frame = frameRef.current;
@@ -429,8 +526,24 @@ export default function Landing() {
       setCssVar(frame, "--nav-opacity", next.q > 0 ? "1" : "0");
       setCssVar(frame, "--nav-fill", String(clamp01((next.q - 0.7) / 0.3)));
       setCssVar(frame, "--work-x", `${(-wx).toFixed(2)}px`);
-      setCssVar(frame, "--j-x", `${(-185 + meet * 105).toFixed(3)}%`);
-      setCssVar(frame, "--l-x", `${(85 - meet * 100).toFixed(3)}%`);
+
+      // handwriting draw-on: begins as the merged JL fade (--f) passes ~0.8 and
+      // the center clears, then "writes" over the next ~0.85 viewport of scroll.
+      const writeStart = vh * 1.2; // earlier — as the JL fade gets going
+      const write = clamp01((window.scrollY - writeStart) / (vh * 0.435));
+      if (vhDevRef.current) {
+        vhDevRef.current.textContent =
+          `${(window.scrollY / vh).toFixed(3)} vh · write ${write.toFixed(2)}`;
+      }
+      setCssVar(frame, "--write", String(write));
+      drawHandwriting(write);
+
+      const docH = document.documentElement.scrollHeight;
+      const maxY = Math.max(0, docH - vh);
+      setCssVar(frame, "--scroll-frac", String(maxY > 0 ? clamp01(window.scrollY / maxY) : 0));
+      setCssVar(frame, "--scroll-vis", String(docH > 0 ? Math.min(1, vh / docH) : 1));
+      setCssVar(frame, "--j-x", `${(-230 + meet * 150).toFixed(3)}%`);
+      setCssVar(frame, "--l-x", `${(130 - meet * 145).toFixed(3)}%`);
       setCssVar(frame, "--intro-right-x", `${(next.p * 60).toFixed(3)}vw`);
       setCssVar(frame, "--intro-left-x", `${(-next.p * 60).toFixed(3)}vw`);
       setCssVar(frame, "--mono-mask-start", `${(next.f * 125 - 25).toFixed(3)}%`);
@@ -507,6 +620,7 @@ export default function Landing() {
         rafRef.current = window.requestAnimationFrame(updateScrollProgress);
       }
     }
+    requestScrollUpdateRef.current = requestScrollUpdate;
 
     updateScrollProgress();
     window.addEventListener("scroll", requestScrollUpdate, { passive: true });
@@ -523,6 +637,16 @@ export default function Landing() {
   return (
     <div className="frame" ref={frameRef}>
       <div className="grid-page" />
+
+      {/* custom right-edge scrollbar */}
+      <div className="scrollbar-track" aria-hidden />
+      <div className="scrollbar-thumb" aria-hidden />
+
+      {/* handwriting "a day in my life" — draws on with scroll into the empty
+          space once the JL shader has faded. Markup injected from captured SVG. */}
+      <canvas className="handwriting" ref={writeCanvasRef} aria-hidden />
+
+      <div className="vh-dev" ref={vhDevRef} aria-hidden>0 vh</div>
 
       {/* Flood: anchored in the document (scrolls with the page, doesn't stick
           to the screen). Back = opaque fill behind the photos; front = a

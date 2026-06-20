@@ -1,13 +1,21 @@
 /* Portfolio landing — scroll-reveal JL monogram. */
 
-/* gooey blob cursor (buttermax-style) — WebGL metaball canvas */
+/* fluid cursor (buttermax-style) — WebGL fluid sim driving two stacked layers */
 .blob-cursor {
   position: fixed;
   inset: 0;
   width: 100vw;
   height: 100vh;
-  z-index: 9999;
   pointer-events: none;
+}
+/* contrast: white liquid inverts whatever is behind it (page/text) */
+.blob-contrast {
+  z-index: 9998;
+  mix-blend-mode: difference;
+}
+/* reveal: true-color card pixels, drawn on top, normal blend */
+.blob-reveal {
+  z-index: 9999;
 }
 @media (pointer: fine) {
   html.blob-on, html.blob-on body { cursor: none; }

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { SunIcon, MoonIcon, SoundIcon } from "@/components/Icons";
 
-const BlobCursor = dynamic(() => import("@/components/BlobCursor"), { ssr: false });
+const BlobCursor = dynamic(() => import("@/components/FluidCursor"), { ssr: false });
 
 const EMPTY_CLIP = "polygon(0 0, 0 0, 0 0)";
 const SCROLL_EPSILON = 0.001;

@@ -937,7 +937,7 @@ body {
   align-items: center;
 }
 .work-intro-photo { align-self: flex-start; margin-top: 8vh; }
-.work-intro-photo--orbit .work-photo { width: 24vw; height: 50vh; }
+.work-item.work-intro-photo--orbit .work-photo { width: 19.8vw; height: 41.4vh; }
 .work-intro h2 {
   font-family: "Bodoni FLF", serif;
   font-size: clamp(40px, 7vw, 96px);
@@ -999,7 +999,151 @@ body {
 .work-item--wide  { align-self: flex-end; margin-bottom: 8vh; }
 .work-item--small { align-self: flex-start; margin-top: 10vh; }
 .work-item--lower { align-self: flex-end; margin-top: 0; margin-bottom: 6vh; }
+.work-item--techfest {
+  align-self: flex-start;
+  margin: 4vh 0 0;
+  transform: translateY(8vh);
+}
+.work-item--techfest .work-photo { width: 29vw; height: 33vh; }
+.work-item--campus {
+  align-self: flex-end;
+  margin: 0 0 20vh;
+  transform: translateY(-2vh);
+}
+.work-item--campus .work-photo { width: 27vw; height: 36vh; }
+.work-item--transcend { transform: translateY(12vh); }
+.work-item--transcend .work-quote { width: 30vw; }
+.work-item--team { align-self: flex-start; margin-top: 22vh; }
+.work-item--team .work-photo { width: 26.4vw; height: 40.8vh; }
 .work-item:has(.work-quote) { margin-top: 0; }
+
+/* viewport-driven wipe highlight: orange box + white text wipes in right->left,
+   driven by --quote-wipe (0..1) set in Landing.js between 1.625 and 1.75 vh. */
+.work-quote__text { display: inline-grid; }
+.work-quote__text > span { grid-area: 1 / 1; }
+.work-quote__hi {
+  color: #fff;
+  background: #ff7a18;
+  box-shadow: 0 0 0 0.18em #ff7a18;
+  -webkit-mask-image: linear-gradient(
+    to left,
+    #000 calc(var(--quote-wipe, 0) * 100%),
+    transparent calc(var(--quote-wipe, 0) * 100%)
+  );
+  mask-image: linear-gradient(
+    to left,
+    #000 calc(var(--quote-wipe, 0) * 100%),
+    transparent calc(var(--quote-wipe, 0) * 100%)
+  );
+}
+.work-quote__hi--2 {
+  -webkit-mask-image: linear-gradient(
+    to left,
+    #000 calc(var(--quote-wipe2, 0) * 100%),
+    transparent calc(var(--quote-wipe2, 0) * 100%)
+  );
+  mask-image: linear-gradient(
+    to left,
+    #000 calc(var(--quote-wipe2, 0) * 100%),
+    transparent calc(var(--quote-wipe2, 0) * 100%)
+  );
+}
+.work-quote__hi--3 {
+  -webkit-mask-image: linear-gradient(
+    to left,
+    #000 calc(var(--quote-wipe3, 0) * 100%),
+    transparent calc(var(--quote-wipe3, 0) * 100%)
+  );
+  mask-image: linear-gradient(
+    to left,
+    #000 calc(var(--quote-wipe3, 0) * 100%),
+    transparent calc(var(--quote-wipe3, 0) * 100%)
+  );
+}
+.work-quote__hi--4 {
+  -webkit-mask-image: linear-gradient(
+    to left,
+    #000 calc(var(--quote-wipe4, 0) * 100%),
+    transparent calc(var(--quote-wipe4, 0) * 100%)
+  );
+  mask-image: linear-gradient(
+    to left,
+    #000 calc(var(--quote-wipe4, 0) * 100%),
+    transparent calc(var(--quote-wipe4, 0) * 100%)
+  );
+}
+.work-quote__hi--5 {
+  -webkit-mask-image: linear-gradient(
+    to left,
+    #000 calc(var(--quote-wipe5, 0) * 100%),
+    transparent calc(var(--quote-wipe5, 0) * 100%)
+  );
+  mask-image: linear-gradient(
+    to left,
+    #000 calc(var(--quote-wipe5, 0) * 100%),
+    transparent calc(var(--quote-wipe5, 0) * 100%)
+  );
+}
+.work-quote__hi--6 {
+  -webkit-mask-image: linear-gradient(
+    to left,
+    #000 calc(var(--quote-wipe6, 0) * 100%),
+    transparent calc(var(--quote-wipe6, 0) * 100%)
+  );
+  mask-image: linear-gradient(
+    to left,
+    #000 calc(var(--quote-wipe6, 0) * 100%),
+    transparent calc(var(--quote-wipe6, 0) * 100%)
+  );
+}
+.work-quote__hi--7 {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 calc(var(--quote-wipe7, 0) * 100%),
+    transparent calc(var(--quote-wipe7, 0) * 100%)
+  );
+  mask-image: linear-gradient(
+    to right,
+    #000 calc(var(--quote-wipe7, 0) * 100%),
+    transparent calc(var(--quote-wipe7, 0) * 100%)
+  );
+}
+.work-quote__hi--8 {
+  -webkit-mask-image: linear-gradient(
+    to left,
+    #000 calc(var(--quote-wipe8, 0) * 100%),
+    transparent calc(var(--quote-wipe8, 0) * 100%)
+  );
+  mask-image: linear-gradient(
+    to left,
+    #000 calc(var(--quote-wipe8, 0) * 100%),
+    transparent calc(var(--quote-wipe8, 0) * 100%)
+  );
+}
+.work-quote__hi--9 {
+  -webkit-mask-image: linear-gradient(
+    to left,
+    #000 calc(var(--quote-wipe9, 0) * 100%),
+    transparent calc(var(--quote-wipe9, 0) * 100%)
+  );
+  mask-image: linear-gradient(
+    to left,
+    #000 calc(var(--quote-wipe9, 0) * 100%),
+    transparent calc(var(--quote-wipe9, 0) * 100%)
+  );
+}
+.work-quote__hi--10 {
+  -webkit-mask-image: linear-gradient(
+    to left,
+    #000 calc(var(--quote-wipe10, 0) * 100%),
+    transparent calc(var(--quote-wipe10, 0) * 100%)
+  );
+  mask-image: linear-gradient(
+    to left,
+    #000 calc(var(--quote-wipe10, 0) * 100%),
+    transparent calc(var(--quote-wipe10, 0) * 100%)
+  );
+}
 
 @media (max-width: 600px) {
   .wordmark { top: 26px; left: 26px; font-size: 21px; }

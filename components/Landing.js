@@ -117,6 +117,7 @@ const WORK_ITEMS = [
     height: 1200,
     quote: "To strive, to seek, to find, and not to yield.",
     quoteBy: "Ulysses",
+    wipeQuote: true,
     vertical: "lower",
     tone: "warm-duotone",
   },
@@ -129,6 +130,7 @@ const WORK_ITEMS = [
     position: "center",
     width: 1600,
     height: 1200,
+    layout: "team",
     placeholderQuote: "A reader lives a thousand lives before he dies. The man who never reads lives only one.",
     placeholderQuoteBy: "George R. R. Martin",
   },
@@ -144,6 +146,8 @@ const WORK_ITEMS = [
     quote: "Still round the corner there may wait a new road or a secret gate.",
     quoteBy: "J.R.R. Tolkien",
     quotePosition: "after",
+    wipeQuote2: true,
+    layout: "transcend",
   },
   {
     id: "candid drink",
@@ -166,6 +170,7 @@ const WORK_ITEMS = [
     height: 1600,
     quote: "Not all those who wander are lost.",
     quoteBy: "J.R.R. Tolkien",
+    wipeQuote3: true,
   },
   {
     id: "techfest team",
@@ -176,6 +181,7 @@ const WORK_ITEMS = [
     position: "center",
     width: 1200,
     height: 628,
+    layout: "techfest",
   },
   {
     id: "campus huddle",
@@ -186,6 +192,7 @@ const WORK_ITEMS = [
     position: "center",
     width: 1600,
     height: 1200,
+    layout: "campus",
   },
 ];
 const WORK_PLACEHOLDER_ITEMS = [
@@ -559,6 +566,29 @@ export default function Landing() {
           setFloodShaderActive(floodShouldBeActive);
         }
         const overTop = top <= 90;
+        // viewport-driven wipe highlight on the "To strive" quote: starts at
+        // 1.625vh, freezes complete at 1.75vh. Set every frame (before the
+        // change-guard) so it persists past the intro early-returns.
+        const quoteWipe = clamp01((window.scrollY - vh * 1.625) / (vh * 0.125));
+        setCssVar(frame, "--quote-wipe", quoteWipe.toFixed(4));
+        const quoteWipe2 = clamp01((window.scrollY - vh * 1.68) / (vh * 0.12));
+        setCssVar(frame, "--quote-wipe2", quoteWipe2.toFixed(4));
+        const quoteWipe3 = clamp01((window.scrollY - vh * 1.8) / (vh * 0.05));
+        setCssVar(frame, "--quote-wipe3", quoteWipe3.toFixed(4));
+        const quoteWipe4 = clamp01((window.scrollY - vh * 1.85) / (vh * 0.1));
+        setCssVar(frame, "--quote-wipe4", quoteWipe4.toFixed(4));
+        const quoteWipe5 = clamp01((window.scrollY - vh * 2.1) / (vh * 0.15));
+        setCssVar(frame, "--quote-wipe5", quoteWipe5.toFixed(4));
+        const quoteWipe6 = clamp01((window.scrollY - vh * 2.25) / (vh * 0.17));
+        setCssVar(frame, "--quote-wipe6", quoteWipe6.toFixed(4));
+        const quoteWipe7 = clamp01((window.scrollY - vh * 2.9) / (vh * 0.2));
+        setCssVar(frame, "--quote-wipe7", quoteWipe7.toFixed(4));
+        const quoteWipe8 = clamp01((window.scrollY - vh * 3.1) / (vh * 0.15));
+        setCssVar(frame, "--quote-wipe8", quoteWipe8.toFixed(4));
+        const quoteWipe9 = clamp01((window.scrollY - vh * 1.225) / (vh * 0.105));
+        setCssVar(frame, "--quote-wipe9", quoteWipe9.toFixed(4));
+        const quoteWipe10 = clamp01((window.scrollY - vh * 1.33) / (vh * 0.12));
+        setCssVar(frame, "--quote-wipe10", quoteWipe10.toFixed(4));
         const overBottom = top <= vh - 60;
         if (overTop !== overFloodRef.current.top) {
           overFloodRef.current.top = overTop;
@@ -1056,10 +1086,6 @@ export default function Landing() {
                 ))}
               </div>
               <figure className="work-item work-item--tall work-intro-photo work-intro-photo--orbit">
-                <blockquote className="work-quote">
-                  Monsters are the patron saints of imperfection.
-                  <cite>— Guillermo del Toro</cite>
-                </blockquote>
                 <span className="work-cap">THE ORBIT</span>
                 <img
                   className="work-photo"
@@ -1071,13 +1097,54 @@ export default function Landing() {
                   decoding="async"
                   style={{ objectPosition: "center" }}
                 />
+                <blockquote className="work-quote">
+                  <span className="work-quote__text">
+                    <span>Monsters</span>
+                    <span className="work-quote__hi work-quote__hi--9" aria-hidden>Monsters</span>
+                  </span>{" "}are the patron saints of{" "}
+                  <span className="work-quote__text">
+                    <span>imperfection</span>
+                    <span className="work-quote__hi work-quote__hi--10" aria-hidden>imperfection</span>
+                  </span>.
+                  <cite>— Guillermo del Toro</cite>
+                </blockquote>
               </figure>
             </div>
             {WORK_ITEMS.map((it) => (
-              <figure key={it.id} className={`work-item work-item--${it.size}${it.vertical ? ` work-item--${it.vertical}` : ""}`}>
+              <figure key={it.id} className={`work-item work-item--${it.size}${it.vertical ? ` work-item--${it.vertical}` : ""}${it.layout ? ` work-item--${it.layout}` : ""}`}>
                 {it.quote && it.quotePosition !== "after" && (
                   <blockquote className="work-quote">
-                    {it.quote}
+                    {it.wipeQuote ? (
+                      <>
+                        <span className="work-quote__text">
+                          <span>To strive</span>
+                          <span className="work-quote__hi" aria-hidden>To strive</span>
+                        </span>
+                        , <span className="work-quote__text">
+                          <span>to seek</span>
+                          <span className="work-quote__hi work-quote__hi--2" aria-hidden>to seek</span>
+                        </span>, <span className="work-quote__text">
+                          <span>to find</span>
+                          <span className="work-quote__hi work-quote__hi--3" aria-hidden>to find</span>
+                        </span>, and <span className="work-quote__text">
+                          <span>not to yield</span>
+                          <span className="work-quote__hi work-quote__hi--4" aria-hidden>not to yield</span>
+                        </span>.
+                      </>
+                    ) : it.wipeQuote3 ? (
+                      <>
+                        <span className="work-quote__text">
+                          <span>Not all those who</span>
+                          <span className="work-quote__hi work-quote__hi--7" aria-hidden>Not all those who</span>
+                        </span>{" "}
+                        <span className="work-quote__text">
+                          <span>wander are lost</span>
+                          <span className="work-quote__hi work-quote__hi--8" aria-hidden>wander are lost</span>
+                        </span>.
+                      </>
+                    ) : (
+                      it.quote
+                    )}
                     <cite>— {it.quoteBy}</cite>
                   </blockquote>
                 )}
@@ -1094,7 +1161,21 @@ export default function Landing() {
                 />
                 {it.quote && it.quotePosition === "after" && (
                   <blockquote className="work-quote">
-                    {it.quote}
+                    {it.wipeQuote2 ? (
+                      <>
+                        Still round the corner there may wait{" "}
+                        <span className="work-quote__text">
+                          <span>a new road</span>
+                          <span className="work-quote__hi work-quote__hi--5" aria-hidden>a new road</span>
+                        </span>{" "}or{" "}
+                        <span className="work-quote__text">
+                          <span>a secret gate</span>
+                          <span className="work-quote__hi work-quote__hi--6" aria-hidden>a secret gate</span>
+                        </span>.
+                      </>
+                    ) : (
+                      it.quote
+                    )}
                     <cite>— {it.quoteBy}</cite>
                   </blockquote>
                 )}

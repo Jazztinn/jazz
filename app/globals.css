@@ -144,19 +144,22 @@ body::-webkit-scrollbar { display: none; } /* WebKit */
   transform: rotate(-45deg);
 }
 @keyframes scroll-cue-stem {
-  0%, 8% { height: 0; }
-  58%, 76% { height: 48px; }
-  100% { height: 0; }
+  0%, 8% { top: 4px; height: 0; }
+  58%, 76% { top: 4px; height: 48px; }
+  /* Exit: the tail travels down into the fixed arrow point. */
+  94% { top: 52px; height: 0; }
+  100% { top: 4px; height: 0; }
 }
 @keyframes scroll-cue-head {
   0%, 8% { top: 4px; }
   58%, 76% { top: 52px; }
+  94% { top: 52px; }
   100% { top: 4px; }
 }
 @keyframes scroll-cue-arm {
   0%, 8% { width: 0; }
   58%, 76% { width: 34px; }
-  100% { width: 0; }
+  94%, 100% { width: 0; }
 }
 
 /* handwriting overlay — fixed in the empty center, fades in with the draw */
@@ -326,10 +329,12 @@ body {
   top: 27px;            /* center (~54px) aligns with the logo center */
   left: 44px;
   z-index: 20;
-  line-height: 1.04;    /* original height */
+  font-family: var(--font-quicksand), system-ui, sans-serif;
+  line-height: 0.73;
   font-size: 26px;
-  font-weight: 500;
-  letter-spacing: -0.045em;
+  font-weight: 400;
+  letter-spacing: -0.092em;
+  text-align: center;
   color: #fff;
   mix-blend-mode: difference;
   user-select: none;
@@ -932,6 +937,7 @@ body {
   align-items: center;
 }
 .work-intro-photo { align-self: flex-start; margin-top: 8vh; }
+.work-intro-photo--orbit .work-photo { width: 24vw; height: 50vh; }
 .work-intro h2 {
   font-family: "Bodoni FLF", serif;
   font-size: clamp(40px, 7vw, 96px);
@@ -992,6 +998,7 @@ body {
 .work-item--tall  { align-self: center; }
 .work-item--wide  { align-self: flex-end; margin-bottom: 8vh; }
 .work-item--small { align-self: flex-start; margin-top: 10vh; }
+.work-item--lower { align-self: flex-end; margin-top: 0; margin-bottom: 6vh; }
 .work-item:has(.work-quote) { margin-top: 0; }
 
 @media (max-width: 600px) {

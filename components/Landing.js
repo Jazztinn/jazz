@@ -117,6 +117,7 @@ const WORK_ITEMS = [
     height: 1200,
     quote: "To strive, to seek, to find, and not to yield.",
     quoteBy: "Ulysses",
+    vertical: "lower",
     tone: "warm-duotone",
   },
   {
@@ -132,16 +133,17 @@ const WORK_ITEMS = [
     placeholderQuoteBy: "George R. R. Martin",
   },
   {
-    id: "placeholder fill",
-    label: "IN THE MOMENT, 2025",
+    id: "transcend group",
+    label: "TRANSCEND",
     size: "wide",
-    src: "/work/helmet-walk.jpg",
-    alt: "Placeholder photo",
+    src: "/work/transcend-group.jpg",
+    alt: "Students at the Transcend event",
     position: "center",
-    width: 1200,
-    height: 1600,
+    width: 1600,
+    height: 1200,
     quote: "Still round the corner there may wait a new road or a secret gate.",
     quoteBy: "J.R.R. Tolkien",
+    quotePosition: "after",
   },
   {
     id: "candid drink",
@@ -165,8 +167,30 @@ const WORK_ITEMS = [
     quote: "Not all those who wander are lost.",
     quoteBy: "J.R.R. Tolkien",
   },
+  {
+    id: "techfest team",
+    label: "TECHFEST",
+    size: "wide",
+    src: "/work/techfest-team.jpg",
+    alt: "Students representing Tech Fest with laptops",
+    position: "center",
+    width: 1200,
+    height: 628,
+  },
+  {
+    id: "campus huddle",
+    label: "CAMPUS HUDDLE",
+    size: "wide",
+    src: "/work/campus-huddle.jpg",
+    alt: "Students gathering around a table in a campus hall",
+    position: "center",
+    width: 1600,
+    height: 1200,
+  },
 ];
-const WORK_PLACEHOLDER_ITEMS = WORK_ITEMS.slice(0, 3);
+const WORK_PLACEHOLDER_ITEMS = [
+  { id: "water drive", label: "COMMUNITY DRIVE", size: "tall", src: "/work/water-drive.jpg", position: "center", width: 1200, height: 900 },
+];
 
 // silver / chrome liquid metal, masked to each glyph SVG
 const METAL = {
@@ -772,7 +796,7 @@ export default function Landing() {
       <div className="wordmark">
         jazztinn
         <br />
-        legaspi
+        {"\u00A0"}legaspi
       </div>
 
       {/* top-center logo: traces its outline (curves and all) as the second
@@ -1031,12 +1055,16 @@ export default function Landing() {
                   </figure>
                 ))}
               </div>
-              <figure className="work-item work-item--tall work-intro-photo">
-                <span className="work-cap">FIELD NOTES, 2025</span>
+              <figure className="work-item work-item--tall work-intro-photo work-intro-photo--orbit">
+                <blockquote className="work-quote">
+                  Monsters are the patron saints of imperfection.
+                  <cite>— Guillermo del Toro</cite>
+                </blockquote>
+                <span className="work-cap">THE ORBIT</span>
                 <img
                   className="work-photo"
-                  src="/work/live-drawing.jpg"
-                  alt="Placeholder photo"
+                  src="/work/orbit-talk.jpg"
+                  alt="Students receiving recognition on an event stage"
                   width={1600}
                   height={1200}
                   loading="lazy"
@@ -1046,8 +1074,8 @@ export default function Landing() {
               </figure>
             </div>
             {WORK_ITEMS.map((it) => (
-              <figure key={it.id} className={`work-item work-item--${it.size}`}>
-                {it.quote && (
+              <figure key={it.id} className={`work-item work-item--${it.size}${it.vertical ? ` work-item--${it.vertical}` : ""}`}>
+                {it.quote && it.quotePosition !== "after" && (
                   <blockquote className="work-quote">
                     {it.quote}
                     <cite>— {it.quoteBy}</cite>
@@ -1064,6 +1092,12 @@ export default function Landing() {
                   decoding="async"
                   style={{ objectPosition: it.position }}
                 />
+                {it.quote && it.quotePosition === "after" && (
+                  <blockquote className="work-quote">
+                    {it.quote}
+                    <cite>— {it.quoteBy}</cite>
+                  </blockquote>
+                )}
               </figure>
             ))}
           </div>

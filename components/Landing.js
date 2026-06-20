@@ -153,6 +153,7 @@ const WORK_ITEMS = [
     height: 1600,
   },
 ];
+const WORK_PLACEHOLDER_ITEMS = WORK_ITEMS.slice(0, 3);
 
 // silver / chrome liquid metal, masked to each glyph SVG
 const METAL = {
@@ -582,7 +583,7 @@ export default function Landing() {
         </button>
       </div>
 
-      {/* menu modal: black panel with white dithering texture */}
+      {/* menu modal: split editorial panel */}
       <div
         className={`menu-modal${menuOpen ? " menu-modal--open" : ""}${menuClosing ? " menu-modal--closing" : ""}`}
         aria-hidden={!menuOpen}
@@ -593,10 +594,73 @@ export default function Landing() {
         <div className="menu-modal-fog" aria-hidden>
           {ready && (menuOpen || menuClosing) && <Dithering {...MENU_FOG} />}
         </div>
+        <div className="menu-modal-info">
+          <div>
+            <img
+              className="menu-preview"
+              src="/work/datalink-booth.jpg"
+              alt=""
+              width="1800"
+              height="1200"
+              loading="lazy"
+              decoding="async"
+            />
+            <div className="menu-meta">
+              <div>
+                <span>Recent Project</span>
+                <strong>Datalink Booth</strong>
+              </div>
+              <div>
+                <span>Scope</span>
+                <strong>Web Development</strong>
+                <strong>Visual Design</strong>
+                <strong>Creative Direction</strong>
+              </div>
+            </div>
+          </div>
+          <div className="menu-footer">
+            <div className="menu-socials">
+              {["github", "linkedin", "facebook", "instagram"].map((id) => {
+                const social = SOCIALS.find((item) => item.id === id);
+                if (!social) return null;
+                return (
+                  <a
+                    key={social.id}
+                    className="menu-social"
+                    href={social.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={social.label}
+                  >
+                    <span
+                      className="menu-social-fog"
+                      style={{
+                        maskImage: `url(/icons/${social.id}.svg)`,
+                        WebkitMaskImage: `url(/icons/${social.id}.svg)`,
+                      }}
+                    >
+                      {ready && (
+                        <SmokeRing
+                          {...SOCIAL_SHADER}
+                          colorBack={social.shader.colorBack}
+                          colors={social.shader.colors}
+                        />
+                      )}
+                    </span>
+                  </a>
+                );
+              })}
+            </div>
+            <p>Building strange, useful interfaces.</p>
+            <p>© 2026 · Jazz Legaspi</p>
+          </div>
+        </div>
         <nav className="menu-modal-nav">
-          <a href="#" onClick={closeMenu}>work</a>
-          <a href="#" onClick={closeMenu}>about</a>
-          <a href="#" onClick={closeMenu}>contact</a>
+          <a href="#" onClick={closeMenu}>Work</a>
+          <a href="#" onClick={closeMenu}>Services</a>
+          <a href="#" onClick={closeMenu}>Pricing</a>
+          <a href="#" onClick={closeMenu}>About</a>
+          <a href="#" onClick={closeMenu}>Contact</a>
         </nav>
       </div>
       <div
@@ -676,7 +740,7 @@ export default function Landing() {
           </div>
 
           <div className="hero" ref={heroRef}>
-            <h1>hi. i&rsquo;m jazz.</h1>
+            <h1>hi. i&rsquo;m <span>jazz.</span></h1>
             <p className="sub">developer / illustrator / writer</p>
             <div className="socials">
               {SOCIALS.map((s) => (
@@ -718,6 +782,26 @@ export default function Landing() {
             ref={trackRef}
           >
             <div className="work-intro">
+              <div className="work-placeholders" aria-hidden>
+                {WORK_PLACEHOLDER_ITEMS.map((it) => (
+                  <figure
+                    key={`placeholder-${it.id}`}
+                    className={`work-item work-item--${it.size} work-placeholder-card`}
+                  >
+                    <span className="work-cap">{it.label}</span>
+                    <img
+                      className={`work-photo${it.tone ? ` work-photo--${it.tone}` : ""}`}
+                      src={it.src}
+                      alt=""
+                      width={it.width}
+                      height={it.height}
+                      loading="lazy"
+                      decoding="async"
+                      style={{ objectPosition: it.position }}
+                    />
+                  </figure>
+                ))}
+              </div>
               <h2>day in my life</h2>
               <p className="muted">
                 candid moments, friends,

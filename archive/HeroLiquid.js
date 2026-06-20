@@ -31,6 +31,7 @@ const FRAG = /* glsl */ `
   uniform float uRadius;     // reveal blob radius (uv)
   uniform float uTime;
   uniform vec3  uPageBg;     // approx page background for the contrast blend
+  uniform float uEdgeChroma; // RGB split width at the reveal blob edge
   varying vec2 vUv;
 
   // --- 2D simplex noise (Ashima / Stefan Gustavson) ---
@@ -99,13 +100,21 @@ const FRAG = /* glsl */ `
     vec2 iuv = (vUv - 0.5) / size + 0.5 - disp;
     vec4 img = chroma(tImg, iuv, ch);
     if (iuv.x < 0.0 || iuv.x > 1.0 || iuv.y < 0.0 || iuv.y > 1.0) img.a = 0.0;
-    img.a *= blob;
+
+    // per-channel blob coverage -> chromatic aberration along the blob edge
+    float eb = uEdgeChroma;
+    float aR = img.a * (1.0 - smoothstep(revealR - 0.004, revealR + 0.004, d - eb));
+    float aG = img.a * blob;
+    float aB = img.a * (1.0 - smoothstep(revealR - 0.004, revealR + 0.004, d + eb));
 
     // wordmark-style contrast: white text in a difference blend against
-    // whatever sits behind it (page bg, or the revealed orange)
-    vec3 behind = mix(uPageBg, img.rgb, img.a);
+    // whatever sits behind it (page bg, or the revealed orange w/ edge fringe)
+    vec3 behind;
+    behind.r = mix(uPageBg.r, img.r, aR);
+    behind.g = mix(uPageBg.g, img.g, aG);
+    behind.b = mix(uPageBg.b, img.b, aB);
     vec3 tcol = abs(vec3(1.0) - behind);
-    float a = max(img.a, text.a);
+    float a = max(max(aR, aG), max(aB, text.a));
     vec3 col = mix(behind, tcol, text.a);
     gl_FragColor = vec4(col, a);
   }
@@ -164,8 +173,9 @@ export default function HeroLiquid({ dark = false, className = "", image = "/ora
         tMap: { value: texture },
         tImg: { value: imgTexture },
         tFlow: flowmap.uniform,
-        uDisp: { value: 0.62 },
+        uDisp: { value: 0.1 },
         uChroma: { value: 0.018 },
+        uEdgeChroma: { value: 0.014 },
         uImgScale: { value: 1.6 },
         uAspect: { value: 1 },
         uImgAspect: { value: 1 },

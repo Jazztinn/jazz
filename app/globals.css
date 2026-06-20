@@ -1,5 +1,18 @@
 /* Portfolio landing — scroll-reveal JL monogram. */
 
+/* gooey blob cursor (buttermax-style) — WebGL metaball canvas */
+.blob-cursor {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+  pointer-events: none;
+}
+@media (pointer: fine) {
+  html.blob-on, html.blob-on body { cursor: none; }
+}
+
 @font-face {
   font-family: "Hangyaboly";
   src: url("/fonts/Hangyaboly.ttf") format("truetype");
@@ -839,21 +852,14 @@ body {
   display: inline-block;
   --hero-fs: clamp(56px, 11vw, 132px);
 }
-/* wordmark-style typography; hidden (the WebGL canvas renders the glyphs) but
-   its computed font props are read by HeroLiquid to rasterize the title. */
+/* wordmark-style typography (the WebGL liquid reveal was archived). */
 .hero-title {
-  visibility: hidden;
   font-family: var(--font-quicksand), system-ui, sans-serif;
   font-weight: 400;
+  font-size: var(--hero-fs);
   letter-spacing: -0.092em;
+  margin: 0;
   transform: none;
-}
-.hero-liquid-gl {
-  position: absolute;
-  /* pad so the warp/chroma fringe isn't clipped at the text edges */
-  inset: -12% -14%;
-  z-index: 1;
-  cursor: default;
 }
 .hero .sub {
   font-family: "Bodoni FLF", serif;
@@ -961,7 +967,7 @@ body {
   align-items: center;
 }
 .work-intro-photo { align-self: flex-start; margin-top: 8vh; }
-.work-item.work-intro-photo--orbit .work-photo { width: 19.8vw; height: 41.4vh; }
+.work-item.work-intro-photo--orbit .work-photo { width: 22vw; height: 46vh; }
 .work-intro h2 {
   font-family: "Bodoni FLF", serif;
   font-size: clamp(40px, 7vw, 96px);

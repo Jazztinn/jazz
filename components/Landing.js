@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { SunIcon, MoonIcon, SoundIcon } from "@/components/Icons";
-import HeroLiquid from "@/components/HeroLiquid";
+
+const BlobCursor = dynamic(() => import("@/components/BlobCursor"), { ssr: false });
 
 const EMPTY_CLIP = "polygon(0 0, 0 0, 0 0)";
 const SCROLL_EPSILON = 0.001;
@@ -215,6 +216,22 @@ const METAL = {
   scale: 1,
   style: { width: "100%", height: "100%" },
 };
+
+// work-gallery photo: duotone (the full-color liquid reveal was archived).
+function WorkPhoto({ className, src, alt, width, height, position }) {
+  return (
+    <img
+      className={className}
+      src={src}
+      alt={alt}
+      width={width}
+      height={height}
+      loading="lazy"
+      decoding="async"
+      style={{ objectPosition: position }}
+    />
+  );
+}
 
 export default function Landing() {
   const [dark, setDark] = useState(false);
@@ -770,6 +787,7 @@ export default function Landing() {
 
   return (
     <div className="frame" ref={frameRef}>
+      <BlobCursor />
       {/* duotone filter: shadows -> black, highlights -> orange (#ff7a18) */}
       <svg width="0" height="0" aria-hidden style={{ position: "absolute" }}>
         <filter id="duotone" colorInterpolationFilters="sRGB">
@@ -1021,7 +1039,6 @@ export default function Landing() {
           <div className="hero" ref={heroRef}>
             <div className="hero-stage" ref={heroStageRef}>
               <h1 className="hero-title">hi. i&rsquo;m <span>jazz.</span></h1>
-              <HeroLiquid dark={dark} />
             </div>
             <p className="sub">developer / illustrator / writer</p>
             <div className="socials">
@@ -1071,15 +1088,13 @@ export default function Landing() {
                     className={`work-item work-item--${it.size} work-placeholder-card`}
                   >
                     <span className="work-cap">{it.label}</span>
-                    <img
+                    <WorkPhoto
                       className={`work-photo${it.tone ? ` work-photo--${it.tone}` : ""}`}
                       src={it.src}
                       alt=""
                       width={it.width}
                       height={it.height}
-                      loading="lazy"
-                      decoding="async"
-                      style={{ objectPosition: it.position }}
+                      position={it.position}
                     />
                     {it.placeholderQuote && (
                       <blockquote className="work-quote">
@@ -1092,15 +1107,13 @@ export default function Landing() {
               </div>
               <figure className="work-item work-item--tall work-intro-photo work-intro-photo--orbit">
                 <span className="work-cap">THE ORBIT</span>
-                <img
+                <WorkPhoto
                   className="work-photo"
                   src="/work/orbit-talk.jpg"
                   alt="Students receiving recognition on an event stage"
                   width={1600}
                   height={1200}
-                  loading="lazy"
-                  decoding="async"
-                  style={{ objectPosition: "center" }}
+                  position="center"
                 />
                 <blockquote className="work-quote">
                   <span className="work-quote__text">
@@ -1154,15 +1167,13 @@ export default function Landing() {
                   </blockquote>
                 )}
                 <span className="work-cap">{it.label}</span>
-                <img
+                <WorkPhoto
                   className={`work-photo${it.tone ? ` work-photo--${it.tone}` : ""}`}
                   src={it.src}
                   alt={it.alt}
                   width={it.width}
                   height={it.height}
-                  loading="lazy"
-                  decoding="async"
-                  style={{ objectPosition: it.position }}
+                  position={it.position}
                 />
                 {it.quote && it.quotePosition === "after" && (
                   <blockquote className="work-quote">

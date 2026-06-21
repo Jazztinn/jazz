@@ -1421,6 +1421,29 @@ body {
   .menu-project-rail { gap: 8px; }
   .menu-project-card__index { top: 6px; left: 7px; }
   .menu-project-card__copy { right: 7px; bottom: 6px; left: 7px; }
+  .reach-out {
+    min-height: 100svh;
+    padding: 28px 24px calc(28px + env(safe-area-inset-bottom));
+  }
+  .reach-out__headline {
+    margin-top: 16vh;
+  }
+  .reach-out__headline h2 {
+    max-width: 8ch;
+    font-size: clamp(68px, 22vw, 132px);
+    line-height: 0.8;
+  }
+  .reach-out__footer {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  .reach-out__email {
+    font-size: 14px;
+  }
+  .reach-out__rights {
+    text-align: left;
+  }
   .menu-footer { display: none; }
   .menu-modal-nav {
     justify-content: flex-start;

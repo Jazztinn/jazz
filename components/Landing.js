@@ -248,7 +248,6 @@ export default function Landing() {
   const progressRef = useRef({ p: -1, q: -1, f: -1, wx: -1 });
   const floodShaderActiveRef = useRef(false);
   const introShadersActiveRef = useRef(true);
-  const handwritingProgressRef = useRef(-1);
   const layoutMetricsRef = useRef({ vh: 0, docHeight: 0, maxScroll: 0, workHeight: 0, workStart: 0, maxWorkX: 0 });
   const rafRef = useRef(0);
   const sloshRef = useRef({ y: 0, t: 0 });
@@ -265,8 +264,7 @@ export default function Landing() {
   const lRef = useRef(null);
   const heroRef = useRef(null);
   const heroStageRef = useRef(null);
-  const writeCanvasRef = useRef(null);     // canvas for handwriting nib replay
-  const writeDataRef = useRef(null);       // parsed capture JSON
+  const writeCanvasRef = useRef(null);     // svg holding the signature strokes
   const requestScrollUpdateRef = useRef(null);
   const vhDevRef = useRef(null);
 
@@ -290,7 +288,6 @@ export default function Landing() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
-    handwritingProgressRef.current = -1;
     requestScrollUpdateRef.current && requestScrollUpdateRef.current();
   }, [dark]);
 
@@ -331,24 +328,34 @@ export default function Landing() {
     return () => clearTimeout(raise);
   }, []);
 
-  // load the captured handwriting JSON (centerline points + pressure + per-
-  // stroke timing + nib params). Replayed on a canvas with a parallelogram nib.
+  // load the jazz signature SVG and inject its strokes. Each path draws on
+  // sequentially via stroke-dashoffset bound to --write (set per frame from
+  // scroll), so it "signs" as you scroll — same gate window as before.
   useEffect(() => {
     let alive = true;
-    fetch("/handwriting/day-in-my-life.json")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!alive || !data || !data.strokes) return;
-        // fall back to even time slices if the capture had no timing
-        const allFlat = data.strokes.every((s) => s.tStart === 0 && s.tEnd === 1);
-        if (allFlat) {
-          const n = data.strokes.length;
-          data.strokes.forEach((s, i) => {
-            s.tStart = i / n;
-            s.tEnd = (i + 1) / n;
-          });
-        }
-        writeDataRef.current = data;
+    const svg = writeCanvasRef.current;
+    if (!svg) return;
+    fetch("/handwriting/jazz-signature.svg")
+      .then((r) => (r.ok ? r.text() : null))
+      .then((text) => {
+        if (!alive || !text) return;
+        const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+        const srcPaths = Array.from(doc.querySelectorAll("path"));
+        if (!srcPaths.length) return;
+        const vb = doc.querySelector("svg")?.getAttribute("viewBox") || "0 0 1600 400";
+        svg.setAttribute("viewBox", vb);
+        svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+        svg.innerHTML = "";
+        const span = 1 / srcPaths.length; // each stroke gets an equal slice of --write
+        srcPaths.forEach((sp, i) => {
+          const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          p.setAttribute("d", sp.getAttribute("d"));
+          p.setAttribute("pathLength", "1");
+          const start = (i * span).toFixed(4);
+          // undrawn (offset 1) until --write reaches this stroke's slice, then 0
+          p.style.strokeDashoffset = `clamp(0, calc(1 - (var(--write, 0) - ${start}) / ${span.toFixed(4)}), 1)`;
+          svg.appendChild(p);
+        });
         requestScrollUpdateRef.current && requestScrollUpdateRef.current();
       })
       .catch(() => {});
@@ -449,71 +456,6 @@ export default function Landing() {
       }
     }
 
-    // ---- handwriting nib replay (mirrors tools/handwriting-capture.html) ----
-    function nibCorners(nib, p) {
-      const a = (nib.angle * Math.PI) / 180;
-      const w = nib.weight * (0.65 + 0.7 * p);
-      const hux = (Math.cos(a) * w) / 2, huy = (Math.sin(a) * w) / 2;
-      const hvx = (Math.cos(a + Math.PI / 2) * w * nib.thick) / 2;
-      const hvy = (Math.sin(a + Math.PI / 2) * w * nib.thick) / 2;
-      return [
-        [-hux - hvx, -huy - hvy],
-        [hux - hvx, huy - hvy],
-        [hux + hvx, huy + hvy],
-        [-hux + hvx, -huy + hvy],
-      ];
-    }
-    function hull(pts) {
-      pts = pts.slice().sort((A, B) => A[0] - B[0] || A[1] - B[1]);
-      const cross = (O, A, B) => (A[0] - O[0]) * (B[1] - O[1]) - (A[1] - O[1]) * (B[0] - O[0]);
-      const lo = [], hi = [];
-      for (const p of pts) { while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
-      for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (hi.length >= 2 && cross(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
-      lo.pop(); hi.pop();
-      return lo.concat(hi);
-    }
-    function sweep(cx, nib, a, pa, b, pb) {
-      const ca = nibCorners(nib, pa), cb = nibCorners(nib, pb);
-      const band = [
-        ...ca.map((c) => [a[0] + c[0], a[1] + c[1]]),
-        ...cb.map((c) => [b[0] + c[0], b[1] + c[1]]),
-      ];
-      const poly = hull(band);
-      cx.beginPath();
-      cx.moveTo(poly[0][0], poly[0][1]);
-      for (let i = 1; i < poly.length; i++) cx.lineTo(poly[i][0], poly[i][1]);
-      cx.closePath();
-      cx.fill();
-    }
-    function drawHandwriting(write) {
-      const cv = writeCanvasRef.current;
-      const data = writeDataRef.current;
-      if (!cv || !data) return;
-      const VW = data.viewBox[2], VH = data.viewBox[3];
-      if (cv.width !== VW || cv.height !== VH) { cv.width = VW; cv.height = VH; }
-      const cx = cv.getContext("2d");
-      cx.clearRect(0, 0, VW, VH);
-      cx.fillStyle =
-        document.documentElement.dataset.theme === "dark" ? "#f0f0f0" : "#1a1a1a";
-      const nib = data.nib || { weight: 12, angle: 40, thick: 0.35 };
-      for (const s of data.strokes) {
-        const span = Math.max(1e-4, s.tEnd - s.tStart);
-        const local = clamp01((write - s.tStart) / span);
-        if (local <= 0) continue;
-        const pts = s.pts, pr = s.pressure || [];
-        const N = pts.length;
-        if (N === 1) { sweep(cx, nib, pts[0], pr[0] ?? 0.5, pts[0], pr[0] ?? 0.5); continue; }
-        const fpos = local * (N - 1);
-        const last = Math.floor(fpos);
-        for (let i = 1; i <= last; i++) sweep(cx, nib, pts[i - 1], pr[i - 1] ?? 0.5, pts[i], pr[i] ?? 0.5);
-        const frac = fpos - last;
-        if (last < N - 1 && frac > 0) {
-          const a = pts[last], b = pts[last + 1];
-          const bx = a[0] + (b[0] - a[0]) * frac, by = a[1] + (b[1] - a[1]) * frac;
-          sweep(cx, nib, a, pr[last] ?? 0.5, [bx, by], pr[last] ?? 0.5);
-        }
-      }
-    }
 
     function refreshLayoutMetrics() {
       const vh = window.innerHeight;
@@ -687,22 +629,14 @@ export default function Landing() {
       setCssVar(frame, "--nav-fill", String(clamp01((next.q - 0.7) / 0.3)));
       setCssVar(frame, "--work-x", `${(-wx).toFixed(2)}px`);
 
-      // handwriting draw-on: begins as the merged JL fade (--f) passes ~0.8 and
-      // the center clears, then "writes" over the next ~0.85 viewport of scroll.
+      // signature draw-on: same gate window as the old handwriting; the SVG
+      // strokes draw themselves from --write via CSS (stroke-dashoffset), so we
+      // only publish the progress here.
       const writeStart = vh * 0.85; // earlier — as the JL fade gets going
       const write = clamp01((window.scrollY - writeStart) / (vh * 0.278));
       setCssVar(frame, "--write", String(write));
-      const previousWrite = handwritingProgressRef.current;
-      if (
-        previousWrite < 0 ||
-        Math.abs(write - previousWrite) >= 0.005 ||
-        (write === 1 && previousWrite !== 1)
-      ) {
-        handwritingProgressRef.current = write;
-        drawHandwriting(write);
-      }
 
-      // fade the handwriting out with the SAME bottom-up wipe as the marquees,
+      // fade the signature out with the SAME bottom-up wipe as the marquees,
       // starting at 1.78vh.
       const wipe = clamp01((window.scrollY - vh * 1.16) / (vh * 0.2));
       const writeWipe = `linear-gradient(to left, transparent ${(wipe * 125 - 25).toFixed(2)}%, #000 ${(wipe * 125).toFixed(2)}%)`;
@@ -839,9 +773,9 @@ export default function Landing() {
         </span>
       </div>
 
-      {/* handwriting "a day in my life" — draws on with scroll into the empty
-          space once the JL shader has faded. Markup injected from captured SVG. */}
-      <canvas className="handwriting" ref={writeCanvasRef} aria-hidden />
+      {/* jazz signature — strokes draw on with scroll into the empty space once
+          the JL shader has faded. Paths injected from the signature SVG. */}
+      <svg className="handwriting" ref={writeCanvasRef} aria-hidden />
       <div className="vh-dev" ref={vhDevRef} aria-hidden>0.000 vh</div>
 
       {/* Flood: anchored in the document (scrolls with the page, doesn't stick

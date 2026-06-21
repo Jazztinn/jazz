@@ -8,9 +8,16 @@
   height: 100vh;
   pointer-events: none;
 }
-/* glass: frosted translucent liquid-glass blob (built in canvas) */
+/* contrast: white liquid + difference -> page goes black, dark text goes white */
 .blob-contrast {
+  z-index: 9997;
+  mix-blend-mode: difference;
+}
+/* tint: orange liquid + screen -> black(page) becomes orange, white(text) stays
+   white. Net: orange blob with the text showing through in white. */
+.blob-tint {
   z-index: 9998;
+  mix-blend-mode: screen;
 }
 /* reveal: true-color card pixels, drawn on top, normal blend */
 .blob-reveal {
@@ -182,7 +189,7 @@ body::-webkit-scrollbar { display: none; } /* WebKit */
   94%, 100% { width: 0; }
 }
 
-/* handwriting overlay — fixed in the empty center, fades in with the draw */
+/* signature overlay — fixed in the empty center, fades in with the draw */
 .handwriting {
   position: fixed;
   left: 50%;
@@ -194,8 +201,20 @@ body::-webkit-scrollbar { display: none; } /* WebKit */
   height: auto;
   display: block;
   transform: translate(-50%, -50%) scaleY(1.3);
+  overflow: visible;
+  color: #1a1a1a;
   /* visible only across the draw window, then fades as content scrolls up */
   opacity: clamp(0, calc(var(--write, 0) * 6), 1);
+}
+[data-theme="dark"] .handwriting { color: #f0f0f0; }
+/* each injected stroke: drawn on via stroke-dashoffset (set inline from --write) */
+.handwriting path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
 }
 .frame[data-warping="1"] .handwriting {
   transform: translate(-50%, -50%) translate3d(0, var(--page-warp-y), 0) skewY(var(--page-warp-skew)) scaleY(calc(1.3 * var(--page-warp-scale-y)));

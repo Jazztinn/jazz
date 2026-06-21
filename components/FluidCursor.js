@@ -39,26 +39,22 @@ export default function FluidCursor() {
     const canvas = document.createElement("canvas");
     const contrast = document.createElement("canvas");
     contrast.className = "blob-cursor blob-contrast";
+    const tint = document.createElement("canvas");
+    tint.className = "blob-cursor blob-tint";
     const reveal = document.createElement("canvas");
     reveal.className = "blob-cursor blob-reveal";
     document.body.appendChild(contrast);
+    document.body.appendChild(tint);
     document.body.appendChild(reveal);
     const cctx = contrast.getContext("2d");
+    const ttx = tint.getContext("2d");
     const rctx = reveal.getContext("2d");
-    // offscreen scratch for the liquid-glass body + bevel rims
-    const glassTmp = document.createElement("canvas");
-    const rimTmp = document.createElement("canvas");
-    const gtx = glassTmp.getContext("2d");
-    const xtx = rimTmp.getContext("2d");
-    let glassSheen = null;
-    let glassSheenWidth = 0;
-    let glassSheenHeight = 0;
 
     let pointers = [pointerPrototype()];
     pointers[0].color = HSVtoRGB(Math.random(), 1, 1);
 
     const { gl, ext } = getWebGLContext(canvas);
-    if (!gl) { contrast.remove(); reveal.remove(); return; }
+    if (!gl) { contrast.remove(); tint.remove(); reveal.remove(); return; }
     if (!ext.supportLinearFiltering) {
       config.DYE_RESOLUTION = 256;
       config.SHADING = false;
@@ -482,14 +478,35 @@ export default function FluidCursor() {
       const W = window.innerWidth, H = window.innerHeight;
       const floodTop = floodEl ? floodEl.getBoundingClientRect().top : Infinity;
 
-      // liquid-glass layer (replaces the old difference inversion). Frosted
-      // translucent body + a beveled rim (bright top-left, dark bottom-right) +
-      // a soft contact shadow, so the blob reads as a glass blob sitting on the
-      // page. Photos still show true colour via the reveal layer on top.
+      // contrast layer: white liquid + mix-blend-mode:difference -> the white
+      // page goes black and dark text goes white underneath the blob.
       cctx.setTransform(1, 0, 0, 1, 0, 0);
       cctx.clearRect(0, 0, contrast.width, contrast.height);
       if (floodTop > 0) {
-        drawGlass(Math.min(H, floodTop) * dpr);
+        cctx.save();
+        cctx.beginPath();
+        cctx.rect(0, 0, contrast.width, Math.min(H, floodTop) * dpr);
+        cctx.clip();
+        cctx.drawImage(canvas, 0, 0);
+        cctx.restore();
+      }
+
+      // tint layer: orange liquid + mix-blend-mode:screen -> turns the black
+      // (page) into orange while the white (text) stays white. Net result:
+      // orange blob with the text showing through in white.
+      ttx.setTransform(1, 0, 0, 1, 0, 0);
+      ttx.clearRect(0, 0, tint.width, tint.height);
+      if (floodTop > 0) {
+        ttx.save();
+        ttx.beginPath();
+        ttx.rect(0, 0, tint.width, Math.min(H, floodTop) * dpr);
+        ttx.clip();
+        ttx.drawImage(canvas, 0, 0);
+        ttx.globalCompositeOperation = "source-in";
+        ttx.fillStyle = "#ff7a18";
+        ttx.fillRect(0, 0, tint.width, tint.height);
+        ttx.globalCompositeOperation = "source-over";
+        ttx.restore();
       }
 
       // reveal layer (true color over cards)
@@ -514,90 +531,6 @@ export default function FluidCursor() {
       rctx.globalCompositeOperation = "source-over";
     }
 
-    // Build the liquid-glass appearance from the white blob mask (`canvas`) and
-    // paint it onto the visible `contrast` canvas, clipped above the flood.
-    function drawGlass(clipH) {
-      const w = contrast.width, h = contrast.height;
-      if (glassTmp.width !== w || glassTmp.height !== h) { glassTmp.width = w; glassTmp.height = h; }
-      if (rimTmp.width !== w || rimTmp.height !== h) { rimTmp.width = w; rimTmp.height = h; }
-      if (glassSheenWidth !== w || glassSheenHeight !== h) {
-        glassSheen = gtx.createLinearGradient(0, 0, 0, h * 0.6);
-        glassSheen.addColorStop(0, "rgba(255,255,255,0.22)");
-        glassSheen.addColorStop(1, "rgba(255,255,255,0)");
-        glassSheenWidth = w;
-        glassSheenHeight = h;
-      }
-      const d = Math.max(2, Math.round(4 * dpr));    // bevel width
-      const d2 = Math.max(1, Math.round(1.6 * dpr)); // tight glint width
-
-      // one beveled rim band: keep the slice of the blob NOT overlapped by an
-      // offset copy, then tint it. offX/offY point AWAY from the kept edge.
-      function rim(offX, offY, color) {
-        xtx.setTransform(1, 0, 0, 1, 0, 0);
-        xtx.globalCompositeOperation = "source-over";
-        xtx.filter = "none";
-        xtx.clearRect(0, 0, w, h);
-        xtx.drawImage(canvas, 0, 0);
-        xtx.globalCompositeOperation = "destination-out";
-        xtx.drawImage(canvas, offX, offY);
-        xtx.globalCompositeOperation = "source-in";
-        xtx.fillStyle = color;
-        xtx.fillRect(0, 0, w, h);
-      }
-      function stamp(alpha, blurPx) {
-        gtx.globalCompositeOperation = "source-atop"; // confine to the body
-        gtx.globalAlpha = alpha;
-        gtx.filter = blurPx ? `blur(${blurPx}px)` : "none";
-        gtx.drawImage(rimTmp, 0, 0);
-        gtx.globalAlpha = 1;
-        gtx.filter = "none";
-        gtx.globalCompositeOperation = "source-over";
-      }
-
-      // ---- body + rims assembled on scratch (rims stay inside silhouette) ----
-      gtx.setTransform(1, 0, 0, 1, 0, 0);
-      gtx.globalCompositeOperation = "source-over";
-      gtx.filter = "none";
-      gtx.clearRect(0, 0, w, h);
-      gtx.globalAlpha = 0.16;            // frosted translucent body
-      gtx.drawImage(canvas, 0, 0);
-      gtx.globalAlpha = 1;
-
-      // top-down sheen (glass catches light at the top)
-      gtx.globalCompositeOperation = "source-atop";
-      gtx.fillStyle = glassSheen;
-      gtx.fillRect(0, 0, w, h);
-      gtx.globalCompositeOperation = "source-over";
-
-      // refraction ghost: a faint magnified copy of the body offset along the
-      // bevel — reads as the backdrop bending through the thick edge.
-      gtx.globalCompositeOperation = "source-atop";
-      gtx.globalAlpha = 0.14;
-      gtx.drawImage(canvas, -d * 1.6, -d * 1.6, w + d * 3.2, h + d * 3.2);
-      gtx.globalAlpha = 1;
-      gtx.globalCompositeOperation = "source-over";
-
-      rim(-d, -d, "rgba(16,12,6,1)");        // dark bevel: bottom-right
-      stamp(0.55, Math.round(2 * dpr));
-      rim(d, d, "rgba(255,255,255,1)");      // soft specular: top-left
-      stamp(0.7, Math.round(1.5 * dpr));
-      rim(d2, d2, "rgba(255,255,255,1)");    // crisp glint: top-left
-      stamp(0.95, 0);
-
-      // ---- paint to screen: contact shadow, then glass ----
-      cctx.save();
-      cctx.beginPath();
-      cctx.rect(0, 0, w, clipH);
-      cctx.clip();
-      cctx.globalCompositeOperation = "source-over";
-      cctx.globalAlpha = 0.2;
-      cctx.filter = `blur(${Math.round(6 * dpr)}px)`;
-      cctx.drawImage(canvas, 0, Math.round(4 * dpr)); // soft drop shadow below
-      cctx.filter = "none";
-      cctx.globalAlpha = 1;
-      cctx.drawImage(glassTmp, 0, 0);
-      cctx.restore();
-    }
 
     let cards = [];
     let floodEl = null;
@@ -632,10 +565,10 @@ export default function FluidCursor() {
       const width = Math.round(window.innerWidth * dpr);
       const height = Math.round(window.innerHeight * dpr);
       let changed = false;
-      for (const c of [canvas, contrast, reveal]) {
+      for (const c of [canvas, contrast, tint, reveal]) {
         if (c.width !== width || c.height !== height) { c.width = width; c.height = height; changed = true; }
       }
-      for (const c of [contrast, reveal]) {
+      for (const c of [contrast, tint, reveal]) {
         c.style.width = window.innerWidth + "px";
         c.style.height = window.innerHeight + "px";
       }
@@ -848,11 +781,11 @@ export default function FluidCursor() {
       const op = loaded ? Math.min(enter, exit) : 0;
       const next = op > 0;
       if (active || next) {
-        contrast.style.opacity = reveal.style.opacity = String(op);
+        contrast.style.opacity = tint.style.opacity = reveal.style.opacity = String(op);
       }
       if (next === active) return;
       active = next;
-      contrast.style.display = reveal.style.display = active ? "" : "none";
+      contrast.style.display = tint.style.display = reveal.style.display = active ? "" : "none";
       document.documentElement.classList.toggle("blob-on", active);
       if (active) {
         startFrameLoop();
@@ -861,6 +794,8 @@ export default function FluidCursor() {
         raf = 0;
         cctx.setTransform(1, 0, 0, 1, 0, 0);
         cctx.clearRect(0, 0, contrast.width, contrast.height);
+        ttx.setTransform(1, 0, 0, 1, 0, 0);
+        ttx.clearRect(0, 0, tint.width, tint.height);
         rctx.setTransform(1, 0, 0, 1, 0, 0);
         rctx.clearRect(0, 0, reveal.width, reveal.height);
       }
@@ -882,6 +817,7 @@ export default function FluidCursor() {
       window.removeEventListener("resize", onResize);
       document.documentElement.classList.remove("blob-on");
       contrast.remove();
+      tint.remove();
       reveal.remove();
       const lose = gl.getExtension("WEBGL_lose_context");
       if (lose) lose.loseContext();

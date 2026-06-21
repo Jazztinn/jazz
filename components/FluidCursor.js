@@ -12,12 +12,12 @@ const config = {
   DYE_RESOLUTION: 1440,
   CAPTURE_RESOLUTION: 512,
   DENSITY_DISSIPATION: 3.5,
-  VELOCITY_DISSIPATION: 12, // kill momentum almost instantly -> no vortex/plume
+  VELOCITY_DISSIPATION: 8, // let a little momentum linger -> faint plume rollup
   PRESSURE: 0.1,
   PRESSURE_ITERATIONS: 20,
-  CURL: 0, // no vorticity confinement
+  CURL: 4, // tiny vorticity confinement -> very subtle mushroom curl
   SPLAT_RADIUS: 0.45, // larger liquid body
-  SPLAT_FORCE: 2600, // gentler push -> less momentum to roll into a mushroom
+  SPLAT_FORCE: 2900, // gentler push -> just enough to roll into a soft mushroom
   SHADING: true,
   COLOR_UPDATE_SPEED: 10,
   PAUSED: false,
@@ -45,6 +45,14 @@ export default function FluidCursor() {
     document.body.appendChild(reveal);
     const cctx = contrast.getContext("2d");
     const rctx = reveal.getContext("2d");
+    // offscreen scratch for the liquid-glass body + bevel rims
+    const glassTmp = document.createElement("canvas");
+    const rimTmp = document.createElement("canvas");
+    const gtx = glassTmp.getContext("2d");
+    const xtx = rimTmp.getContext("2d");
+    let glassSheen = null;
+    let glassSheenWidth = 0;
+    let glassSheenHeight = 0;
 
     let pointers = [pointerPrototype()];
     pointers[0].color = HSVtoRGB(Math.random(), 1, 1);
@@ -441,17 +449,29 @@ export default function FluidCursor() {
     let lastUpdateTime = Date.now();
     let colorUpdateTimer = 0.0;
     let raf = 0;
+    let resizePending = true;
 
     function updateFrame() {
-      raf = requestAnimationFrame(updateFrame);
+      raf = 0;
+      if (!active) return;
       const dt = calcDeltaTime();
-      if (resizeCanvas()) initFramebuffers();
-      if (!active) return; // gated: loader gone + hero scrolled past
+      if (resizePending) {
+        resizePending = false;
+        if (resizeCanvas()) initFramebuffers();
+      }
       updateColors(dt);
       applyInputs();
       step(dt);
       render(null); // -> offscreen gl canvas: white liquid mask on transparent
       composite();
+      raf = requestAnimationFrame(updateFrame);
+    }
+
+    function startFrameLoop() {
+      if (raf) return;
+      // Do not let inactive time create a large simulation delta on re-entry.
+      lastUpdateTime = Date.now();
+      updateFrame();
     }
 
     // two layers from the same white liquid mask:
@@ -462,16 +482,14 @@ export default function FluidCursor() {
       const W = window.innerWidth, H = window.innerHeight;
       const floodTop = floodEl ? floodEl.getBoundingClientRect().top : Infinity;
 
-      // contrast layer (off-card inversion of text/bg)
+      // liquid-glass layer (replaces the old difference inversion). Frosted
+      // translucent body + a beveled rim (bright top-left, dark bottom-right) +
+      // a soft contact shadow, so the blob reads as a glass blob sitting on the
+      // page. Photos still show true colour via the reveal layer on top.
       cctx.setTransform(1, 0, 0, 1, 0, 0);
       cctx.clearRect(0, 0, contrast.width, contrast.height);
       if (floodTop > 0) {
-        cctx.save();
-        cctx.beginPath();
-        cctx.rect(0, 0, contrast.width, Math.min(H, floodTop) * dpr);
-        cctx.clip();
-        cctx.drawImage(canvas, 0, 0);
-        cctx.restore();
+        drawGlass(Math.min(H, floodTop) * dpr);
       }
 
       // reveal layer (true color over cards)
@@ -494,6 +512,91 @@ export default function FluidCursor() {
       rctx.globalCompositeOperation = "destination-in";
       rctx.drawImage(canvas, 0, 0);
       rctx.globalCompositeOperation = "source-over";
+    }
+
+    // Build the liquid-glass appearance from the white blob mask (`canvas`) and
+    // paint it onto the visible `contrast` canvas, clipped above the flood.
+    function drawGlass(clipH) {
+      const w = contrast.width, h = contrast.height;
+      if (glassTmp.width !== w || glassTmp.height !== h) { glassTmp.width = w; glassTmp.height = h; }
+      if (rimTmp.width !== w || rimTmp.height !== h) { rimTmp.width = w; rimTmp.height = h; }
+      if (glassSheenWidth !== w || glassSheenHeight !== h) {
+        glassSheen = gtx.createLinearGradient(0, 0, 0, h * 0.6);
+        glassSheen.addColorStop(0, "rgba(255,255,255,0.22)");
+        glassSheen.addColorStop(1, "rgba(255,255,255,0)");
+        glassSheenWidth = w;
+        glassSheenHeight = h;
+      }
+      const d = Math.max(2, Math.round(4 * dpr));    // bevel width
+      const d2 = Math.max(1, Math.round(1.6 * dpr)); // tight glint width
+
+      // one beveled rim band: keep the slice of the blob NOT overlapped by an
+      // offset copy, then tint it. offX/offY point AWAY from the kept edge.
+      function rim(offX, offY, color) {
+        xtx.setTransform(1, 0, 0, 1, 0, 0);
+        xtx.globalCompositeOperation = "source-over";
+        xtx.filter = "none";
+        xtx.clearRect(0, 0, w, h);
+        xtx.drawImage(canvas, 0, 0);
+        xtx.globalCompositeOperation = "destination-out";
+        xtx.drawImage(canvas, offX, offY);
+        xtx.globalCompositeOperation = "source-in";
+        xtx.fillStyle = color;
+        xtx.fillRect(0, 0, w, h);
+      }
+      function stamp(alpha, blurPx) {
+        gtx.globalCompositeOperation = "source-atop"; // confine to the body
+        gtx.globalAlpha = alpha;
+        gtx.filter = blurPx ? `blur(${blurPx}px)` : "none";
+        gtx.drawImage(rimTmp, 0, 0);
+        gtx.globalAlpha = 1;
+        gtx.filter = "none";
+        gtx.globalCompositeOperation = "source-over";
+      }
+
+      // ---- body + rims assembled on scratch (rims stay inside silhouette) ----
+      gtx.setTransform(1, 0, 0, 1, 0, 0);
+      gtx.globalCompositeOperation = "source-over";
+      gtx.filter = "none";
+      gtx.clearRect(0, 0, w, h);
+      gtx.globalAlpha = 0.16;            // frosted translucent body
+      gtx.drawImage(canvas, 0, 0);
+      gtx.globalAlpha = 1;
+
+      // top-down sheen (glass catches light at the top)
+      gtx.globalCompositeOperation = "source-atop";
+      gtx.fillStyle = glassSheen;
+      gtx.fillRect(0, 0, w, h);
+      gtx.globalCompositeOperation = "source-over";
+
+      // refraction ghost: a faint magnified copy of the body offset along the
+      // bevel — reads as the backdrop bending through the thick edge.
+      gtx.globalCompositeOperation = "source-atop";
+      gtx.globalAlpha = 0.14;
+      gtx.drawImage(canvas, -d * 1.6, -d * 1.6, w + d * 3.2, h + d * 3.2);
+      gtx.globalAlpha = 1;
+      gtx.globalCompositeOperation = "source-over";
+
+      rim(-d, -d, "rgba(16,12,6,1)");        // dark bevel: bottom-right
+      stamp(0.55, Math.round(2 * dpr));
+      rim(d, d, "rgba(255,255,255,1)");      // soft specular: top-left
+      stamp(0.7, Math.round(1.5 * dpr));
+      rim(d2, d2, "rgba(255,255,255,1)");    // crisp glint: top-left
+      stamp(0.95, 0);
+
+      // ---- paint to screen: contact shadow, then glass ----
+      cctx.save();
+      cctx.beginPath();
+      cctx.rect(0, 0, w, clipH);
+      cctx.clip();
+      cctx.globalCompositeOperation = "source-over";
+      cctx.globalAlpha = 0.2;
+      cctx.filter = `blur(${Math.round(6 * dpr)}px)`;
+      cctx.drawImage(canvas, 0, Math.round(4 * dpr)); // soft drop shadow below
+      cctx.filter = "none";
+      cctx.globalAlpha = 1;
+      cctx.drawImage(glassTmp, 0, 0);
+      cctx.restore();
     }
 
     let cards = [];
@@ -538,6 +641,10 @@ export default function FluidCursor() {
       }
       if (changed) refreshCards();
       return changed;
+    }
+    function onResize() {
+      resizePending = true;
+      syncActive();
     }
     function updateColors(dt) {
       colorUpdateTimer += dt * config.COLOR_UPDATE_SPEED;
@@ -732,12 +839,26 @@ export default function FluidCursor() {
     // ---- gates: active only after the loader is gone + hero scrolled past ----
     let active = false, loaded = false;
     function syncActive() {
-      const next = loaded && window.scrollY >= window.innerHeight; // not in hero
+      const vh = window.innerHeight;
+      const y = window.scrollY;
+      // fade in just after the hero (1.0 -> 1.15vh) and fade out into the flood
+      // (3.20 -> 3.45vh) so the blob never snaps on/off.
+      const enter = Math.min(1, Math.max(0, (y - vh) / (vh * 0.15)));
+      const exit = Math.min(1, Math.max(0, (vh * 3.45 - y) / (vh * 0.25)));
+      const op = loaded ? Math.min(enter, exit) : 0;
+      const next = op > 0;
+      if (active || next) {
+        contrast.style.opacity = reveal.style.opacity = String(op);
+      }
       if (next === active) return;
       active = next;
       contrast.style.display = reveal.style.display = active ? "" : "none";
       document.documentElement.classList.toggle("blob-on", active);
-      if (!active) {
+      if (active) {
+        startFrameLoop();
+      } else {
+        if (raf) cancelAnimationFrame(raf);
+        raf = 0;
         cctx.setTransform(1, 0, 0, 1, 0, 0);
         cctx.clearRect(0, 0, contrast.width, contrast.height);
         rctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -748,10 +869,8 @@ export default function FluidCursor() {
     window.addEventListener("jl:loaded", onLoaded, { once: true });
     const loadedFallback = window.setTimeout(onLoaded, 9500);
     window.addEventListener("scroll", syncActive, { passive: true });
-    window.addEventListener("resize", syncActive);
+    window.addEventListener("resize", onResize);
     syncActive();
-
-    updateFrame();
 
     return () => {
       cancelAnimationFrame(raf);
@@ -760,7 +879,7 @@ export default function FluidCursor() {
       window.removeEventListener("jl:loaded", onLoaded);
       window.clearTimeout(loadedFallback);
       window.removeEventListener("scroll", syncActive);
-      window.removeEventListener("resize", syncActive);
+      window.removeEventListener("resize", onResize);
       document.documentElement.classList.remove("blob-on");
       contrast.remove();
       reveal.remove();

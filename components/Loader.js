@@ -10,7 +10,15 @@ const PATHS = [
 
 const TRACE_MIN = 1400; // keep the trace visible at least this long
 const MAX_WAIT = 8000;  // safety cap so we never hang on a stuck asset
-const SHADER_PAINT = 600; // beat for the liquid-metal shaders to paint after mount
+const FILL_DUR = 2600;  // flood (~1.7s) + a hold on the full logo before fading
+
+// Two sine crests (8 half-waves over 1662 = 2x the 831 viewBox, so a -831px
+// horizontal drift loops seamlessly). Filled down to y=620 so the body stays
+// solid as the whole group translates up from below the letters.
+const WAVE_FRONT =
+  "M 0 34 q 103.875 -52 207.75 0 t 207.75 0 t 207.75 0 t 207.75 0 t 207.75 0 t 207.75 0 t 207.75 0 t 207.75 0 L 1662 620 L 0 620 Z";
+const WAVE_BACK =
+  "M 0 54 q 103.875 -36 207.75 0 t 207.75 0 t 207.75 0 t 207.75 0 t 207.75 0 t 207.75 0 t 207.75 0 t 207.75 0 L 1662 620 L 0 620 Z";
 
 // The monogram art is fed to the WebGL shaders as textures, not as page <img>,
 // so window.load never waits for it. Preload here so we don't reveal the page
@@ -35,6 +43,7 @@ function preloadImages(srcs) {
 }
 
 export default function Loader() {
+  const [filled, setFilled] = useState(false); // flood JL solid once loaded
   const [done, setDone] = useState(false);   // start fade-out
   const [gone, setGone] = useState(false);    // remove from DOM
 
@@ -53,15 +62,19 @@ export default function Loader() {
       // page is never revealed before the JL logo can render.
       preloadImages(MONO_SVGS).then(() => {
         if (!alive) return;
+        // Mount the shaders NOW so their heavy WebGL init paints during the
+        // trace — not at the instant the liquid wave animates (that collision
+        // was the jank). They get the rest of the trace to warm up.
+        window.dispatchEvent(new Event("jl:loaded"));
         const wait = Math.max(0, TRACE_MIN - (performance.now() - start));
         timers.push(setTimeout(() => {
           if (!alive) return;
-          window.dispatchEvent(new Event("jl:loaded")); // mount shaders
+          setFilled(true); // stop the trace, flood the JL logo solid
           timers.push(setTimeout(() => {
             if (!alive) return;
-            setDone(true); // start fade once shaders had time to paint
+            setDone(true); // fade after the flood + a hold on the full logo
             timers.push(setTimeout(() => alive && setGone(true), 750));
-          }, SHADER_PAINT));
+          }, FILL_DUR));
         }, wait));
       });
     }
@@ -80,8 +93,23 @@ export default function Loader() {
   if (gone) return null;
 
   return (
-    <div className={`loader${done ? " loader--done" : ""}`} aria-hidden>
-      <svg className="loader-logo" viewBox="0 0 831 509">
+    <div
+      className={`loader${filled ? " loader--filled" : ""}${done ? " loader--done" : ""}`}
+      aria-hidden
+    >
+      <svg className="loader-logo" viewBox="-18 -18 867 545">
+        {/* clip the liquid to the JL letterforms */}
+        <defs>
+          <clipPath id="jl-clip">
+            {PATHS.map((d, i) => (
+              <path
+                key={`clip-${i}`}
+                d={d}
+                transform={i === 1 ? "translate(341,0)" : undefined}
+              />
+            ))}
+          </clipPath>
+        </defs>
         {/* faint full-outline track so the moving segment leaves a trail */}
         {PATHS.map((d, i) => (
           <path
@@ -91,6 +119,14 @@ export default function Loader() {
             transform={i === 1 ? "translate(341,0)" : undefined}
           />
         ))}
+        {/* liquid flood — rises from below the letters, two drifting wave crests */}
+        <g clipPath="url(#jl-clip)">
+          <g className="loader-water">
+            <path className="loader-wave loader-wave--back" d={WAVE_BACK} />
+            <path className="loader-wave loader-wave--front" d={WAVE_FRONT} />
+          </g>
+        </g>
+        {/* crisp outline on top of the liquid */}
         {PATHS.map((d, i) => (
           <path
             key={i}

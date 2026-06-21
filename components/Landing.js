@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { SunIcon, MoonIcon, SoundIcon } from "@/components/Icons";
 
 const BlobCursor = dynamic(() => import("@/components/FluidCursor"), { ssr: false });
@@ -40,9 +41,9 @@ const SOCIAL_SHADER = {
 };
 
 const MENU_PLACEHOLDERS = [
-  { id: "next", index: "01", title: "NEXT", detail: "Community work" },
-  { id: "ai", index: "02", title: "AI Systems", detail: "Case study soon" },
-  { id: "editorial", index: "03", title: "Editorial", detail: "Archive soon" },
+  { id: "next", src: "/work/live-drawing.jpg" },
+  { id: "ai", src: "/work/group-portrait.jpg" },
+  { id: "editorial", src: "/work/techfest-team.jpg" },
 ];
 
 // Beige dithering drifting over the orange flood — duotone, contrasting.
@@ -270,7 +271,6 @@ export default function Landing() {
   const lRef = useRef(null);
   const heroRef = useRef(null);
   const heroStageRef = useRef(null);
-  const writeCanvasRef = useRef(null);     // svg holding the signature strokes
   const outroSignatureRef = useRef(null);
   const outroSignaturePlayedRef = useRef(false);
   const outroSignatureTimerRef = useRef(0);
@@ -344,7 +344,6 @@ export default function Landing() {
   useEffect(() => {
     let alive = true;
     const signatures = [
-      [writeCanvasRef.current, "--write"],
       [outroSignatureRef.current, "--outro-write"],
     ].filter(([svg]) => svg);
     if (!signatures.length) return;
@@ -490,7 +489,6 @@ export default function Landing() {
         element.style.setProperty(property, value);
       }
     }
-
 
     function refreshLayoutMetrics() {
       const vh = window.innerHeight;
@@ -684,19 +682,11 @@ export default function Landing() {
       setCssVar(frame, "--nav-fill", String(clamp01((next.q - 0.7) / 0.3)));
       setCssVar(frame, "--work-x", `${(-wx).toFixed(2)}px`);
 
-      // signature draw-on: same gate window as the old handwriting; the SVG
-      // strokes draw themselves from --write via CSS (stroke-dashoffset), so we
-      // only publish the progress here.
-      const writeStart = vh * 0.85; // earlier — as the JL fade gets going
-      const write = clamp01((window.scrollY - writeStart) / (vh * 0.278));
-      setCssVar(frame, "--write", String(write));
-
-      // fade the signature out with the SAME bottom-up wipe as the marquees,
-      // starting at 1.78vh.
-      const wipe = clamp01((window.scrollY - vh * 1.16) / (vh * 0.2));
-      const writeWipe = `linear-gradient(to left, transparent ${(wipe * 125 - 25).toFixed(2)}%, #000 ${(wipe * 125).toFixed(2)}%)`;
-      setStyleIfChanged(writeCanvasRef.current, "maskImage", writeWipe);
-      setStyleIfChanged(writeCanvasRef.current, "webkitMaskImage", writeWipe);
+      // swoop line: draws across the empty band by 0.85vh, then stays anchored
+      // in the document (absolute) and scrolls away — no fade. The dashoffset
+      // keeps strokes hidden until --swoop advances, so no opacity gating needed.
+      const swoop = clamp01((window.scrollY - vh * 0.35) / (vh * 0.5));
+      setCssVar(frame, "--swoop", swoop.toFixed(4));
 
       setCssVar(frame, "--scroll-frac", String(metrics.maxScroll > 0 ? clamp01(window.scrollY / metrics.maxScroll) : 0));
       setCssVar(frame, "--scroll-vis", String(metrics.docHeight > 0 ? Math.min(1, vh / metrics.docHeight) : 1));
@@ -823,8 +813,7 @@ export default function Landing() {
 
       <div className="grid-page" />
 
-      {/* custom right-edge scrollbar */}
-      <div className="scrollbar-track" aria-hidden />
+      {/* custom right-edge scrollbar — bar only, no track */}
       <div className="scrollbar-thumb" aria-hidden />
       <div className="scroll-cue" aria-hidden>
         <span className="scroll-cue__stem" />
@@ -834,9 +823,24 @@ export default function Landing() {
         </span>
       </div>
 
-      {/* jazz signature — strokes draw on with scroll into the empty space once
-          the JL shader has faded. Paths injected from the signature SVG. */}
-      <svg className="handwriting" ref={writeCanvasRef} aria-hidden />
+      {/* swoop line — draws itself from the upper-right, zig-zagging in smooth
+          curves across to the left as you scroll the empty band. Drawn on via
+          stroke-dashoffset bound to --swoop (set per frame from scroll). */}
+      <svg
+        className="swoop"
+        viewBox="0 0 1600 400"
+        preserveAspectRatio="xMidYMid meet"
+        aria-hidden
+      >
+        <path
+          pathLength="1"
+          stroke="#ff7a18"
+          d="M 1600 0
+             C 1250 140 1300 360 950 320
+             C 600 280 700 60 360 140
+             C 150 190 120 330 0 320"
+        />
+      </svg>
       <div className="vh-dev" ref={vhDevRef} aria-hidden>0.000 vh</div>
 
       {/* Flood: anchored in the document (scrolls with the page, doesn't stick

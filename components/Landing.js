@@ -191,6 +191,10 @@ const WORK_ITEMS = [
     width: 1200,
     height: 628,
     layout: "techfest",
+    quote: "We make our choices, and our choices make us.",
+    quoteBy: "Guillermo del Toro",
+    quotePosition: "after",
+    wipeQuote4: true,
   },
   {
     id: "campus huddle",
@@ -242,6 +246,9 @@ function WorkPhoto({ className, src, alt, width, height, position }) {
 
 export default function Landing() {
   const [dark, setDark] = useState(false);
+  const [blobForced, setBlobForced] = useState(false);
+  const [musicOn, setMusicOn] = useState(false);
+  const audioRef = useRef(null);
   const [muted, setMuted] = useState(false);
   // mount the heavy WebGL shaders only AFTER the loading screen is gone, so
   // their (main-thread) init doesn't freeze the loader animation.
@@ -272,8 +279,7 @@ export default function Landing() {
   const heroRef = useRef(null);
   const heroStageRef = useRef(null);
   const outroSignatureRef = useRef(null);
-  const outroSignaturePlayedRef = useRef(false);
-  const outroSignatureTimerRef = useRef(0);
+  const outroSignatureActiveRef = useRef(false);
   const outroSignatureRafRef = useRef(0);
   const requestScrollUpdateRef = useRef(null);
   const vhDevRef = useRef(null);
@@ -472,6 +478,18 @@ export default function Landing() {
     } catch {}
   }
 
+  function toggleMusic() {
+    const a = audioRef.current;
+    if (!a) return;
+    if (a.paused) {
+      a.volume = 0.5;
+      a.play().then(() => setMusicOn(true)).catch(() => {});
+    } else {
+      a.pause();
+      setMusicOn(false);
+    }
+  }
+
   // Reveal animation runs over the first viewport of scrolling (while the
   // intro is pinned). p: 0 = split, 1 = merged. Past p=1 the intro unpins and
   // the page scrolls normally to the content below.
@@ -489,6 +507,38 @@ export default function Landing() {
         element.style.setProperty(property, value);
       }
     }
+
+    function stopOutroSignatureAnimation() {
+      if (outroSignatureRafRef.current) {
+        window.cancelAnimationFrame(outroSignatureRafRef.current);
+        outroSignatureRafRef.current = 0;
+      }
+    }
+
+    function animateOutroSignature(target) {
+      const signature = outroSignatureRef.current;
+      if (!signature) return;
+      stopOutroSignatureAnimation();
+      const from = Number.parseFloat(signature.style.getPropertyValue("--outro-write")) || 0;
+      const distance = Math.abs(target - from);
+      // retract (target 0) plays 2.5x quicker than the draw-on (target 1)
+      const base = target === 0 ? 1400 / 2.5 : 1400;
+      const duration = reduceMotionQuery.matches ? 0 : base * distance;
+      const start = performance.now();
+      const draw = (timestamp) => {
+        const elapsed = duration ? clamp01((timestamp - start) / duration) : 1;
+        const progress = from + (target - from) * elapsed;
+        setCssVar(signature, "--outro-write", progress.toFixed(4));
+        setStyleIfChanged(signature, "opacity", progress > 0 ? "1" : "0");
+        if (elapsed < 1) {
+          outroSignatureRafRef.current = window.requestAnimationFrame(draw);
+        } else {
+          outroSignatureRafRef.current = 0;
+        }
+      };
+      outroSignatureRafRef.current = window.requestAnimationFrame(draw);
+    }
+
 
     function refreshLayoutMetrics() {
       const vh = window.innerHeight;
@@ -554,23 +604,12 @@ export default function Landing() {
       sl.t = now;
       const reachProgress = clamp01((window.scrollY - vh * 4.6) / (vh * 0.499));
       setCssVar(frame, "--reach-y", `${(-50 * (1 - reachProgress)).toFixed(3)}vh`);
-      if (!outroSignaturePlayedRef.current && window.scrollY >= vh * 5.099) {
-        outroSignaturePlayedRef.current = true;
-        outroSignatureTimerRef.current = window.setTimeout(() => {
-          const signature = outroSignatureRef.current;
-          if (!signature) return;
-          const start = performance.now();
-          const duration = reduceMotionQuery.matches ? 0 : 700;
-          const draw = (timestamp) => {
-            const progress = duration ? clamp01((timestamp - start) / duration) : 1;
-            setCssVar(signature, "--outro-write", progress.toFixed(4));
-            setStyleIfChanged(signature, "opacity", progress > 0 ? "1" : "0");
-            if (progress < 1) {
-              outroSignatureRafRef.current = window.requestAnimationFrame(draw);
-            }
-          };
-          outroSignatureRafRef.current = window.requestAnimationFrame(draw);
-        }, 500);
+      if (!outroSignatureActiveRef.current && window.scrollY >= vh * 4.97) {
+        outroSignatureActiveRef.current = true;
+        animateOutroSignature(1);
+      } else if (outroSignatureActiveRef.current && window.scrollY <= vh * 4.96) {
+        outroSignatureActiveRef.current = false;
+        animateOutroSignature(0);
       }
       setCssVar(frame, "--slosh", `${clamp(-vel * 2.5, -3.5, 3.5).toFixed(2)}deg`);
       // Use the rendered scroll velocity for a small elastic response. The
@@ -626,6 +665,11 @@ export default function Landing() {
         setCssVar(frame, "--quote-wipe9", quoteWipe9.toFixed(4));
         const quoteWipe10 = clamp01((window.scrollY - vh * 1.33) / (vh * 0.12));
         setCssVar(frame, "--quote-wipe10", quoteWipe10.toFixed(4));
+        // del Toro quote under techfest: two phrases wipe in sequence.
+        const quoteWipe11 = clamp01((window.scrollY - vh * 3.21) / (vh * 0.19));
+        setCssVar(frame, "--quote-wipe11", quoteWipe11.toFixed(4));
+        const quoteWipe12 = clamp01((window.scrollY - vh * 3.4) / (vh * 0.25));
+        setCssVar(frame, "--quote-wipe12", quoteWipe12.toFixed(4));
         const overBottom = top <= vh - 60;
         if (overTop !== overFloodRef.current.top) {
           overFloodRef.current.top = overTop;
@@ -784,18 +828,13 @@ export default function Landing() {
       if (rafRef.current) {
         window.cancelAnimationFrame(rafRef.current);
       }
-      if (outroSignatureTimerRef.current) {
-        window.clearTimeout(outroSignatureTimerRef.current);
-      }
-      if (outroSignatureRafRef.current) {
-        window.cancelAnimationFrame(outroSignatureRafRef.current);
-      }
+      stopOutroSignatureAnimation();
     };
   }, []);
 
   return (
     <div className="frame" ref={frameRef}>
-      <BlobCursor disabled={menuOpen || menuClosing} />
+      <BlobCursor disabled={menuOpen || menuClosing} forced={blobForced} />
       {/* duotone filter: shadows -> black, highlights -> orange (#ff7a18) */}
       <svg width="0" height="0" aria-hidden style={{ position: "absolute" }}>
         <filter id="duotone" colorInterpolationFilters="sRGB">
@@ -865,7 +904,21 @@ export default function Landing() {
         {ready && floodShaderActive && <Dithering {...OUTRO_FOG} />}
       </div>
 
-      <div className="wordmark">
+      <div
+        className="wordmark"
+        role="button"
+        tabIndex={0}
+        aria-pressed={blobForced}
+        aria-label="toggle fluid blob"
+        onClick={() => { blip(); setBlobForced((v) => !v); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            blip();
+            setBlobForced((v) => !v);
+          }
+        }}
+      >
         jazztinn
         <br />
         {"\u00A0"}legaspi
@@ -927,11 +980,13 @@ export default function Landing() {
             <div className="menu-project-rail" aria-label="Selected work placeholders">
               {MENU_PLACEHOLDERS.map((item) => (
                 <article className={`menu-project-card menu-project-card--${item.id}`} key={item.id}>
-                  <span className="menu-project-card__index">{item.index}</span>
-                  <div className="menu-project-card__copy">
-                    <strong>{item.title}</strong>
-                    <span>{item.detail}</span>
-                  </div>
+                  <img
+                    className="menu-project-card__img"
+                    src={item.src}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                  />
                 </article>
               ))}
             </div>
@@ -977,11 +1032,11 @@ export default function Landing() {
           </div>
         </div>
         <nav className="menu-modal-nav">
-          <a href="#" onClick={closeMenu}>Work</a>
-          <a href="#" onClick={closeMenu}>Experience</a>
-          <a href="#" onClick={closeMenu}>Projects</a>
-          <a href="#" onClick={closeMenu}>Leadership</a>
-          <a href="#" onClick={closeMenu}>Contact</a>
+          <Link href="/work" onClick={closeMenu}>Work</Link>
+          <Link href="/experience" onClick={closeMenu}>Experience</Link>
+          <Link href="/projects" onClick={closeMenu}>Projects</Link>
+          <Link href="/contact" onClick={closeMenu}>Contact</Link>
+          <Link href="/faq" onClick={closeMenu}>FAQ</Link>
         </nav>
       </div>
       <div
@@ -1007,6 +1062,28 @@ export default function Landing() {
           <SoundIcon muted={muted} />
         </button>
       </div>
+
+      {/* bottom-left: orange music toggle (sticky like the toolbar) */}
+      <button
+        className={`music-toggle${musicOn ? " music-toggle--on" : ""}`}
+        onClick={toggleMusic}
+        aria-label="toggle music"
+        aria-pressed={musicOn}
+      >
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden>
+          <path
+            d="M9 18V6l10-2v12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <circle cx="6" cy="18" r="3" fill="currentColor" />
+          <circle cx="16" cy="16" r="3" fill="currentColor" />
+        </svg>
+      </button>
+      <audio ref={audioRef} src="/audio/music.mp3" loop preload="auto" />
 
       {/* cookie consent: full-width bar that rises from the bottom */}
       {cookieMounted && (
@@ -1236,6 +1313,17 @@ export default function Landing() {
                         <span className="work-quote__text">
                           <span>a secret gate</span>
                           <span className="work-quote__hi work-quote__hi--6" aria-hidden>a secret gate</span>
+                        </span>.
+                      </>
+                    ) : it.wipeQuote4 ? (
+                      <>
+                        <span className="work-quote__text">
+                          <span>We make our choices</span>
+                          <span className="work-quote__hi work-quote__hi--11" aria-hidden>We make our choices</span>
+                        </span>,<br />and{" "}
+                        <span className="work-quote__text">
+                          <span>our choices make us</span>
+                          <span className="work-quote__hi work-quote__hi--12" aria-hidden>our choices make us</span>
                         </span>.
                       </>
                     ) : (

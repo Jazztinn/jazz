@@ -8,10 +8,9 @@
   height: 100vh;
   pointer-events: none;
 }
-/* contrast: white liquid inverts whatever is behind it (page/text) */
+/* glass: frosted translucent liquid-glass blob (built in canvas) */
 .blob-contrast {
   z-index: 9998;
-  mix-blend-mode: difference;
 }
 /* reveal: true-color card pixels, drawn on top, normal blend */
 .blob-reveal {
@@ -229,7 +228,9 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   overflow-x: clip;
-  --flood-height: 235vh;
+  /* waterline document position: orange first enters the bottom of the screen
+     at scrollY = (--flood-top - 100vh) = 3.5 viewports of scroll. */
+  --flood-top: 450vh;
   --p: 0;
   --q: 0;
   --f: 0;
@@ -285,8 +286,8 @@ body {
   /* oversized past the page edges so the slosh tilt never exposes a corner */
   left: -15vw;
   right: -15vw;
+  top: var(--flood-top); /* waterline pinned to a fixed document position */
   bottom: -20vh;
-  height: var(--flood-height); /* waterline sits earlier in the document */
   pointer-events: none;
 }
 .flood--back  { z-index: 9; }   /* fill behind the photos (those above waterline) */
@@ -912,8 +913,8 @@ body {
   position: absolute;
   left: 0;
   right: 0;
+  top: var(--flood-top); /* matches the flood so it covers the whole orange */
   bottom: -20vh;
-  height: var(--flood-height); /* matches the flood so it covers the whole orange */
   z-index: 12;         /* above the flood layers */
   pointer-events: none;
   /* soft fade in at the waterline (top of the flood) */
@@ -1228,5 +1229,96 @@ body {
   .menu-modal-nav a {
     font-size: clamp(42px, 5vw, 82px);
     line-height: 0.98;
+  }
+}
+
+/* ---- cookie consent bar (rises from the bottom) ---- */
+.cookie-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 25; /* above content + flood, below the menu modal (30) */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4vw;
+  padding: 26px clamp(22px, 5vw, 90px);
+  background: #111111;
+  box-shadow: 0 -18px 40px rgba(0, 0, 0, 0.28);
+  transform: translateY(110%);
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.cookie-bar--in {
+  transform: translateY(0);
+}
+.cookie-bar__text {
+  margin: 0;
+  max-width: 70ch;
+  color: #f2c200;
+  font-family: var(--font-quicksand), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: clamp(11px, 0.95vw, 15px);
+  letter-spacing: 0.05em;
+  line-height: 1.4;
+}
+.cookie-bar__actions {
+  display: flex;
+  gap: 22px;
+  flex-shrink: 0;
+}
+.cookie-btn {
+  position: relative;
+  appearance: none;
+  cursor: pointer;
+  background: transparent;
+  color: #f2c200;
+  border: 2px solid #f2c200;
+  border-radius: 999px;
+  padding: 15px clamp(28px, 3vw, 46px);
+  font-family: var(--font-quicksand), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: clamp(12px, 0.95vw, 15px);
+  letter-spacing: 0.09em;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.12s ease;
+}
+/* concentric inner ring, matching the reference double-outline pill */
+.cookie-btn::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border: 1.5px solid #f2c200;
+  border-radius: 999px;
+  opacity: 0.6;
+  pointer-events: none;
+  transition: border-color 0.2s ease;
+}
+.cookie-btn:hover,
+.cookie-btn:focus-visible {
+  background: #f2c200;
+  color: #111111;
+  outline: none;
+}
+.cookie-btn:hover::before,
+.cookie-btn:focus-visible::before {
+  border-color: #111111;
+}
+.cookie-btn:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+@media (max-width: 720px) {
+  .cookie-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 18px;
+    padding: 22px 24px calc(22px + env(safe-area-inset-bottom));
+  }
+  .cookie-bar__actions {
+    align-self: stretch;
+  }
+  .cookie-btn {
+    flex: 1;
   }
 }

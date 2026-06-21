@@ -243,6 +243,8 @@ export default function Landing() {
   const [menuClosing, setMenuClosing] = useState(false);
   const [floodShaderActive, setFloodShaderActive] = useState(false);
   const [introShadersActive, setIntroShadersActive] = useState(true);
+  const [cookieMounted, setCookieMounted] = useState(false); // in DOM
+  const [cookieIn, setCookieIn] = useState(false);           // slid up
   const progressRef = useRef({ p: -1, q: -1, f: -1, wx: -1 });
   const floodShaderActiveRef = useRef(false);
   const introShadersActiveRef = useRef(true);
@@ -278,6 +280,14 @@ export default function Landing() {
     setMenuClosing(true);
   }
 
+  function decideCookies(accept) {
+    try {
+      localStorage.setItem("jl:cookies", accept ? "accepted" : "rejected");
+    } catch {}
+    blip();
+    setCookieIn(false); // slide back down; unmounts on transition end
+  }
+
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
     handwritingProgressRef.current = -1;
@@ -306,6 +316,19 @@ export default function Landing() {
       window.removeEventListener("jl:loaded", onLoaded);
       clearTimeout(t);
     };
+  }, []);
+
+  // cookie consent bar: raise from the bottom shortly after load, unless the
+  // visitor has already accepted/rejected on a previous visit.
+  useEffect(() => {
+    let decided = false;
+    try {
+      decided = !!localStorage.getItem("jl:cookies");
+    } catch {}
+    if (decided) return;
+    setCookieMounted(true);
+    const raise = setTimeout(() => setCookieIn(true), 900);
+    return () => clearTimeout(raise);
   }, []);
 
   // load the captured handwriting JSON (centerline points + pressure + per-
@@ -983,6 +1006,31 @@ export default function Landing() {
           <SoundIcon muted={muted} />
         </button>
       </div>
+
+      {/* cookie consent: full-width bar that rises from the bottom */}
+      {cookieMounted && (
+        <div
+          className={`cookie-bar${cookieIn ? " cookie-bar--in" : ""}`}
+          role="dialog"
+          aria-label="Cookie consent"
+          onTransitionEnd={(event) => {
+            if (event.propertyName === "transform" && !cookieIn) setCookieMounted(false);
+          }}
+        >
+          <p className="cookie-bar__text">
+            WE USE COOKIES TO ENHANCE YOUR BROWSING EXPERIENCE AND TO ANALYZE OUR
+            TRAFFIC. BY CLICKING &ldquo;ACCEPT&rdquo;, YOU CONSENT TO THE USE OF COOKIES.
+          </p>
+          <div className="cookie-bar__actions">
+            <button className="cookie-btn" onClick={() => decideCookies(true)}>
+              ACCEPT
+            </button>
+            <button className="cookie-btn" onClick={() => decideCookies(false)}>
+              REJECT
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* pinned intro: monogram reveal + hero. Unpins after one viewport. */}
       <section className="intro content-warp">

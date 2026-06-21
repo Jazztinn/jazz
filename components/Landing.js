@@ -39,6 +39,12 @@ const SOCIAL_SHADER = {
   style: { width: "100%", height: "100%" },
 };
 
+const MENU_PLACEHOLDERS = [
+  { id: "next", index: "01", title: "NEXT", detail: "Community work" },
+  { id: "ai", index: "02", title: "AI Systems", detail: "Case study soon" },
+  { id: "editorial", index: "03", title: "Editorial", detail: "Archive soon" },
+];
+
 // Beige dithering drifting over the orange flood — duotone, contrasting.
 const OUTRO_FOG = {
   shape: "warp",
@@ -364,6 +370,26 @@ export default function Landing() {
     };
   }, []);
 
+  // Duplicate each quote (with its vh-driven highlight wipe) into the frame.
+  // The duplicate is styled with a black highlight + white text and is hidden
+  // until the fluid blob reveals it (masked in FluidCursor). This guarantees the
+  // revealed highlight matches the original's size/position exactly.
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    const quotes = Array.from(frame.querySelectorAll(".work-quote"));
+    const clones = quotes.map((q) => {
+      const clone = q.cloneNode(true);
+      clone.classList.add("work-quote--reveal");
+      clone.setAttribute("aria-hidden", "true");
+      clone.__src = q; // FluidCursor positions + masks the clone over its source
+      frame.appendChild(clone);
+      return clone;
+    });
+    requestScrollUpdateRef.current && requestScrollUpdateRef.current();
+    return () => clones.forEach((clone) => clone.remove());
+  }, []);
+
   useEffect(() => {
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     const state = smoothScrollRef.current;
@@ -544,7 +570,7 @@ export default function Landing() {
         const top = fl.getBoundingClientRect().top;
         // Start at a deliberate document position so the dither is fully ready
         // when the flood reaches the gallery's closing sequence.
-        const floodShouldBeActive = window.scrollY >= vh * 2.8;
+        const floodShouldBeActive = window.scrollY >= vh * 2.8 && window.scrollY < vh * 5.6;
         if (floodShouldBeActive !== floodShaderActiveRef.current) {
           floodShaderActiveRef.current = floodShouldBeActive;
           setFloodShaderActive(floodShouldBeActive);
@@ -744,7 +770,7 @@ export default function Landing() {
 
   return (
     <div className="frame" ref={frameRef}>
-      <BlobCursor />
+      <BlobCursor disabled={menuOpen || menuClosing} />
       {/* duotone filter: shadows -> black, highlights -> orange (#ff7a18) */}
       <svg width="0" height="0" aria-hidden style={{ position: "absolute" }}>
         <filter id="duotone" colorInterpolationFilters="sRGB">
@@ -859,18 +885,20 @@ export default function Landing() {
               loading="lazy"
               decoding="async"
             />
-            <div className="menu-meta">
-              <div>
-                <span>Recent Project</span>
-                <strong>Datalink Booth</strong>
-              </div>
-              <div>
-                <span>Scope</span>
-                <strong>Web Development</strong>
-                <strong>Visual Design</strong>
-                <strong>Creative Direction</strong>
-              </div>
+            <div className="menu-project-rail" aria-label="Selected work placeholders">
+              {MENU_PLACEHOLDERS.map((item) => (
+                <article className={`menu-project-card menu-project-card--${item.id}`} key={item.id}>
+                  <span className="menu-project-card__index">{item.index}</span>
+                  <div className="menu-project-card__copy">
+                    <strong>{item.title}</strong>
+                    <span>{item.detail}</span>
+                  </div>
+                </article>
+              ))}
             </div>
+            <p className="menu-invite">
+              WANNA JAM ON A PROJECT TOGETHER? WANNA CATCH UP FOR A CHAT? A COFFEE? SOME GAMES? REACH OUT!
+            </p>
           </div>
           <div className="menu-footer">
             <div className="menu-socials">
@@ -905,15 +933,15 @@ export default function Landing() {
                 );
               })}
             </div>
-            <p>Building strange, useful interfaces.</p>
-            <p>© 2026 · Jazz Legaspi</p>
+            <p>Building frontend systems, AI tools, and technology communities.</p>
+            <p>© 2026 Jazztinn Legaspi. All rights reserved.</p>
           </div>
         </div>
         <nav className="menu-modal-nav">
           <a href="#" onClick={closeMenu}>Work</a>
-          <a href="#" onClick={closeMenu}>Services</a>
-          <a href="#" onClick={closeMenu}>Pricing</a>
-          <a href="#" onClick={closeMenu}>About</a>
+          <a href="#" onClick={closeMenu}>Experience</a>
+          <a href="#" onClick={closeMenu}>Projects</a>
+          <a href="#" onClick={closeMenu}>Leadership</a>
           <a href="#" onClick={closeMenu}>Contact</a>
         </nav>
       </div>
@@ -1183,8 +1211,23 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* trailing space: lets the carousel finish, then the liquid floods in */}
+      {/* The flood occupies the final 1.1 viewports of the gallery sequence. */}
       <section className="outro content-warp" aria-hidden />
+      <section className="reach-out" aria-labelledby="reach-out-title">
+        <div className="reach-out__headline">
+          <p>LET&apos;S MAKE SOMETHING</p>
+          <h2 id="reach-out-title">REACH OUT</h2>
+        </div>
+        <div className="reach-out__footer">
+          <p className="reach-out__invite">
+            Wanna jam on a project together? Wanna catch up for a chat? A coffee? Some games? Reach out!
+          </p>
+          <a className="reach-out__email" href="mailto:legaspijazztinnkyle@gmail.com">
+            legaspijazztinnkyle@gmail.com
+          </a>
+          <p className="reach-out__rights">JAZZTINN. ALL RIGHTS RESERVED.</p>
+        </div>
+      </section>
     </div>
   );
 }

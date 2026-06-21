@@ -23,6 +23,26 @@
 .blob-reveal {
   z-index: 9999;
 }
+/* Quote duplicate revealed by the blob. Only the highlighted phrase is visible
+   in this layer, preventing the base quote from rendering twice. */
+.work-quote.work-quote--reveal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  margin: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+  color: transparent;
+  visibility: hidden;     /* shown only where the blob mask reveals it */
+  z-index: 10000;         /* above the blob orange canvases */
+  will-change: transform;
+}
+.work-quote.work-quote--reveal cite { color: transparent; }
+.work-quote.work-quote--reveal .work-quote__hi {
+  background: #000;
+  box-shadow: 0 0 0 0.18em #000;
+  color: #fff;
+}
 @media (pointer: fine) {
   html.blob-on, html.blob-on body { cursor: none; }
 }
@@ -297,16 +317,15 @@ body {
   transition: background-color 0.25s ease;
 }
 
-/* Orange flood anchored in the document — its waterline stays at a fixed page
-   position and scrolls past with the content (it does NOT stick to the screen).
-   Tall block reaching the page bottom; the wavy top edge is the waterline. */
+/* Orange flood anchored in the document — it spans 4.5vh through 5.6vh, then
+   gives way to the black reach-out section. */
 .flood {
   position: absolute;
   /* oversized past the page edges so the slosh tilt never exposes a corner */
   left: -15vw;
   right: -15vw;
   top: var(--flood-top); /* waterline pinned to a fixed document position */
-  bottom: -20vh;
+  height: 110vh;
   pointer-events: none;
 }
 .flood--back  { z-index: 9; }   /* fill behind the photos (those above waterline) */
@@ -502,7 +521,7 @@ body {
   padding: 0;
   overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(300px, 39vw) 1fr;
+  grid-template-columns: minmax(300px, 62vw) 1fr;
   /* black = the area OUTSIDE an ellipse rising from the bottom. As --gap shrinks
      the black fills top->down with a CONCAVE (center pulled up) leading edge.
      --gap huge => fully transparent (hidden); --gap 0 => full black. */
@@ -589,6 +608,97 @@ body {
   filter: grayscale(1) brightness(0.95) contrast(1.08);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
+.menu-project-rail {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.menu-project-card {
+  position: relative;
+  aspect-ratio: 1.8;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.12), transparent 42%),
+    #1b1b1b;
+}
+.menu-project-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 13px 13px;
+  mask-image: linear-gradient(135deg, #000, transparent 75%);
+  -webkit-mask-image: linear-gradient(135deg, #000, transparent 75%);
+}
+.menu-project-card::after {
+  content: "";
+  position: absolute;
+  width: 68%;
+  height: 135%;
+  right: -20%;
+  bottom: -80%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  transform: rotate(32deg);
+}
+.menu-project-card--ai {
+  background:
+    linear-gradient(145deg, rgba(255, 122, 24, 0.45), transparent 56%),
+    #1b1b1b;
+}
+.menu-project-card--editorial {
+  background:
+    linear-gradient(145deg, rgba(230, 240, 255, 0.25), transparent 56%),
+    #1b1b1b;
+}
+.menu-project-card__index,
+.menu-project-card__copy {
+  position: absolute;
+  z-index: 1;
+}
+.menu-project-card__index {
+  top: 8px;
+  left: 9px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+.menu-project-card__copy {
+  right: 9px;
+  bottom: 8px;
+  left: 9px;
+}
+.menu-project-card__copy strong,
+.menu-project-card__copy span {
+  display: block;
+}
+.menu-project-card__copy strong {
+  color: rgba(255, 255, 255, 0.86);
+  font-size: clamp(11px, 0.9vw, 14px);
+  line-height: 1.05;
+}
+.menu-project-card__copy span {
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: clamp(9px, 0.7vw, 11px);
+  line-height: 1.1;
+}
+.menu-invite {
+  max-width: 38ch;
+  margin: 22px 0 0;
+  color: #f2f2f2;
+  font-family: var(--font-quicksand), system-ui, sans-serif;
+  font-size: clamp(34px, 3.4vw, 58px);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  text-align: justify;
+}
 .menu-meta {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
@@ -643,12 +753,13 @@ body {
   flex-direction: column;
   justify-content: center;
   gap: 0;
+  /* no left padding: the nav buttons sit right against the divider */
   padding: clamp(58px, 8vh, 96px) 0 clamp(30px, 4vh, 52px);
 }
 .menu-modal-nav a {
   position: relative;
   width: 100%;
-  padding: 0.04em clamp(52px, 6vw, 110px) 0.04em clamp(120px, 13vw, 220px);
+  padding: 0.04em clamp(52px, 6vw, 110px) 0.04em clamp(58px, 6.5vw, 110px);
   font-size: clamp(46px, 5.9vw, 96px);
   font-weight: 900;
   line-height: 1.02;
@@ -925,7 +1036,7 @@ body {
 .outro {
   position: relative;
   z-index: 12; /* above the flood so the fog/line show on the orange */
-  height: 170vh;
+  height: 90vh;
 }
 /* beige halftone over the entire orange flood */
 .flood-fog {
@@ -933,12 +1044,103 @@ body {
   left: 0;
   right: 0;
   top: var(--flood-top); /* matches the flood so it covers the whole orange */
-  bottom: -20vh;
+  height: 110vh;
   z-index: 12;         /* above the flood layers */
   pointer-events: none;
   /* soft fade in at the waterline (top of the flood) */
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 8%);
   mask-image: linear-gradient(to bottom, transparent 0%, #000 8%);
+}
+.reach-out {
+  position: relative;
+  z-index: 13;
+  min-height: 100vh;
+  padding: clamp(28px, 4vw, 72px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: #101010;
+  color: #f2f2f2;
+}
+.reach-out::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.22;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(242, 194, 0, 0.8) 0 1px, transparent 1.2px),
+    linear-gradient(135deg, transparent 50%, rgba(242, 194, 0, 0.14) 50%);
+  background-size: 14px 14px, 100% 100%;
+  mask-image: linear-gradient(120deg, transparent 5%, #000 45%, transparent 80%);
+  -webkit-mask-image: linear-gradient(120deg, transparent 5%, #000 45%, transparent 80%);
+}
+.reach-out__headline,
+.reach-out__footer {
+  position: relative;
+  z-index: 1;
+}
+.reach-out__headline {
+  margin-top: clamp(10vh, 17vh, 190px);
+}
+.reach-out__headline p {
+  margin: 0 0 10px;
+  color: #f2c200;
+  font-size: clamp(11px, 0.9vw, 15px);
+  font-weight: 800;
+  letter-spacing: 0.13em;
+}
+.reach-out__headline h2 {
+  max-width: 12ch;
+  margin: 0;
+  color: #f2c200;
+  font-family: var(--font-quicksand), system-ui, sans-serif;
+  font-size: clamp(72px, 15vw, 270px);
+  font-weight: 900;
+  letter-spacing: -0.11em;
+  line-height: 0.78;
+}
+.reach-out__footer {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr) auto;
+  gap: clamp(20px, 4vw, 72px);
+  align-items: end;
+}
+.reach-out__invite {
+  max-width: 28ch;
+  margin: 0;
+  font-family: "Bodoni FLF", serif;
+  font-size: clamp(20px, 2vw, 34px);
+  line-height: 0.95;
+  letter-spacing: -0.035em;
+}
+.reach-out__email {
+  width: fit-content;
+  padding: 0.75em 1.1em 0.82em;
+  border-radius: 999px;
+  background: #f2c200;
+  color: #111111;
+  font-size: clamp(13px, 1.15vw, 18px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  text-decoration: none;
+  transition: transform 0.18s ease, background 0.18s ease;
+}
+.reach-out__email:hover,
+.reach-out__email:focus-visible {
+  transform: translateY(-3px);
+  background: #fff4b8;
+  outline: none;
+}
+.reach-out__rights {
+  margin: 0;
+  color: rgba(242, 194, 0, 0.9);
+  font-size: clamp(10px, 0.75vw, 13px);
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-align: right;
 }
 .work {
   position: relative;
@@ -1216,6 +1418,9 @@ body {
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
   .menu-preview { height: 150px; }
+  .menu-project-rail { gap: 8px; }
+  .menu-project-card__index { top: 6px; left: 7px; }
+  .menu-project-card__copy { right: 7px; bottom: 6px; left: 7px; }
   .menu-footer { display: none; }
   .menu-modal-nav {
     justify-content: flex-start;

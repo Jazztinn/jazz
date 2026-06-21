@@ -27,14 +27,21 @@ const config = {
 // slo-mo: scale the sim timestep down so the liquid flows + dissolves slowly.
 const SLOWMO = 0.45;
 
-export default function FluidCursor({ disabled = false }) {
+export default function FluidCursor({ disabled = false, forced = false }) {
   const disabledRef = useRef(disabled);
+  const forcedRef = useRef(forced);
   const syncActiveRef = useRef(null);
 
   useEffect(() => {
     disabledRef.current = disabled;
     syncActiveRef.current?.();
   }, [disabled]);
+
+  // forced: the wordmark toggles the blob on across every scroll state.
+  useEffect(() => {
+    forcedRef.current = forced;
+    syncActiveRef.current?.();
+  }, [forced]);
 
   useEffect(() => {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -841,7 +848,10 @@ export default function FluidCursor({ disabled = false }) {
       // (3.20 -> 3.45vh) so the blob never snaps on/off.
       const enter = Math.min(1, Math.max(0, (y - vh) / (vh * 0.15)));
       const exit = Math.min(1, Math.max(0, (vh * 3.45 - y) / (vh * 0.25)));
-      const op = loaded && !disabledRef.current ? Math.min(enter, exit) : 0;
+      // forced (wordmark toggle) keeps the blob fully active in every state;
+      // otherwise it fades in past the hero and out into the flood.
+      const gate = forcedRef.current ? 1 : Math.min(enter, exit);
+      const op = loaded && !disabledRef.current ? gate : 0;
       revealOp = op;
       const next = op > 0;
       if (active || next) {

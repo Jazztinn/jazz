@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 // Plain WebGL fluid cursor — Pavel Dobryakov's fluid sim (MIT), ported 1:1 from
 // the Inspira-UI FluidCursor (Vue) to a React effect. Renders the dye DIRECTLY
@@ -27,7 +27,15 @@ const config = {
 // slo-mo: scale the sim timestep down so the liquid flows + dissolves slowly.
 const SLOWMO = 0.45;
 
-export default function FluidCursor() {
+export default function FluidCursor({ disabled = false }) {
+  const disabledRef = useRef(disabled);
+  const syncActiveRef = useRef(null);
+
+  useEffect(() => {
+    disabledRef.current = disabled;
+    syncActiveRef.current?.();
+  }, [disabled]);
+
   useEffect(() => {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     // offscreen WebGL canvas renders the liquid as a WHITE solid mask. Two
@@ -49,6 +57,10 @@ export default function FluidCursor() {
     const cctx = contrast.getContext("2d");
     const ttx = tint.getContext("2d");
     const rctx = reveal.getContext("2d");
+    // small offscreen copy of the blob, used as a live CSS mask so DOM quote
+    // duplicates (black highlight, white text) are revealed only inside the blob.
+    const maskCanvas = document.createElement("canvas");
+    const mctx = maskCanvas.getContext("2d");
 
     let pointers = [pointerPrototype()];
     pointers[0].color = HSVtoRGB(Math.random(), 1, 1);
@@ -509,6 +521,10 @@ export default function FluidCursor() {
         ttx.restore();
       }
 
+      // reveal the DOM quote duplicates (black highlight, white text) only
+      // inside the blob, using the blob as a live CSS mask.
+      maskReveals();
+
       // reveal layer (true color over cards)
       rctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       rctx.clearRect(0, 0, W, H);
@@ -533,10 +549,57 @@ export default function FluidCursor() {
 
 
     let cards = [];
+    let reveals = [];
     let floodEl = null;
+    let frameEl = null;
+    let revealOp = 0; // current blob opacity (set in syncActive)
     function refreshCards() {
       cards = Array.from(document.querySelectorAll(".work-photo"));
+      // DOM quote duplicates injected by Landing (black highlight, white text)
+      reveals = Array.from(document.querySelectorAll(".work-quote--reveal"));
       floodEl = document.querySelector(".flood--back");
+      frameEl = document.querySelector(".frame");
+    }
+
+    // Reveal the quote duplicates only inside the blob: use a downscaled copy of
+    // the blob as a CSS mask on each duplicate, aligned to the viewport.
+    function maskReveals() {
+      if (!reveals.length) return;
+      const W = window.innerWidth, H = window.innerHeight;
+      const visible = [];
+      for (const el of reveals) {
+        const q = el.__src;
+        if (!q) continue;
+        const r = q.getBoundingClientRect();
+        if (r.width < 1 || r.bottom < 0 || r.top > H || r.right < 0 || r.left > W) {
+          el.style.visibility = "hidden";
+          continue;
+        }
+        visible.push({ el, r });
+      }
+      if (!visible.length) return;
+
+      const MW = Math.min(360, Math.max(1, Math.round(W * 0.32)));
+      const sc = MW / W;
+      const MH = Math.max(1, Math.round(H * sc));
+      if (maskCanvas.width !== MW || maskCanvas.height !== MH) { maskCanvas.width = MW; maskCanvas.height = MH; }
+      mctx.clearRect(0, 0, MW, MH);
+      mctx.drawImage(canvas, 0, 0, MW, MH);
+      const url = maskCanvas.toDataURL();
+      const sizeCss = `${W}px ${H}px`;
+      for (const { el, r } of visible) {
+        el.style.transform = `translate(${r.left}px, ${r.top}px)`;
+        el.style.width = `${r.width}px`;
+        el.style.webkitMaskImage = el.style.maskImage = `url(${url})`;
+        el.style.webkitMaskRepeat = el.style.maskRepeat = "no-repeat";
+        el.style.webkitMaskSize = el.style.maskSize = sizeCss;
+        el.style.webkitMaskPosition = el.style.maskPosition = `${-r.left}px ${-r.top}px`;
+        el.style.opacity = String(revealOp);
+        el.style.visibility = "visible";
+      }
+    }
+    function hideReveals() {
+      for (const el of reveals) el.style.visibility = "hidden";
     }
     function coverSrc(img, dw, dh) {
       const iw = img.naturalWidth || dw, ih = img.naturalHeight || dh;
@@ -778,7 +841,8 @@ export default function FluidCursor() {
       // (3.20 -> 3.45vh) so the blob never snaps on/off.
       const enter = Math.min(1, Math.max(0, (y - vh) / (vh * 0.15)));
       const exit = Math.min(1, Math.max(0, (vh * 3.45 - y) / (vh * 0.25)));
-      const op = loaded ? Math.min(enter, exit) : 0;
+      const op = loaded && !disabledRef.current ? Math.min(enter, exit) : 0;
+      revealOp = op;
       const next = op > 0;
       if (active || next) {
         contrast.style.opacity = tint.style.opacity = reveal.style.opacity = String(op);
@@ -798,6 +862,7 @@ export default function FluidCursor() {
         ttx.clearRect(0, 0, tint.width, tint.height);
         rctx.setTransform(1, 0, 0, 1, 0, 0);
         rctx.clearRect(0, 0, reveal.width, reveal.height);
+        hideReveals();
       }
     }
     function onLoaded() { loaded = true; syncActive(); }
@@ -805,6 +870,7 @@ export default function FluidCursor() {
     const loadedFallback = window.setTimeout(onLoaded, 9500);
     window.addEventListener("scroll", syncActive, { passive: true });
     window.addEventListener("resize", onResize);
+    syncActiveRef.current = syncActive;
     syncActive();
 
     return () => {
@@ -815,10 +881,12 @@ export default function FluidCursor() {
       window.clearTimeout(loadedFallback);
       window.removeEventListener("scroll", syncActive);
       window.removeEventListener("resize", onResize);
+      if (syncActiveRef.current === syncActive) syncActiveRef.current = null;
       document.documentElement.classList.remove("blob-on");
       contrast.remove();
       tint.remove();
       reveal.remove();
+      hideReveals();
       const lose = gl.getExtension("WEBGL_lose_context");
       if (lose) lose.loseContext();
     };

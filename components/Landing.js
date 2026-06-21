@@ -271,6 +271,10 @@ export default function Landing() {
   const heroRef = useRef(null);
   const heroStageRef = useRef(null);
   const writeCanvasRef = useRef(null);     // svg holding the signature strokes
+  const outroSignatureRef = useRef(null);
+  const outroSignaturePlayedRef = useRef(false);
+  const outroSignatureTimerRef = useRef(0);
+  const outroSignatureRafRef = useRef(0);
   const requestScrollUpdateRef = useRef(null);
   const vhDevRef = useRef(null);
 
@@ -339,8 +343,11 @@ export default function Landing() {
   // scroll), so it "signs" as you scroll — same gate window as before.
   useEffect(() => {
     let alive = true;
-    const svg = writeCanvasRef.current;
-    if (!svg) return;
+    const signatures = [
+      [writeCanvasRef.current, "--write"],
+      [outroSignatureRef.current, "--outro-write"],
+    ].filter(([svg]) => svg);
+    if (!signatures.length) return;
     fetch("/handwriting/jazz-signature.svg")
       .then((r) => (r.ok ? r.text() : null))
       .then((text) => {
@@ -349,18 +356,20 @@ export default function Landing() {
         const srcPaths = Array.from(doc.querySelectorAll("path"));
         if (!srcPaths.length) return;
         const vb = doc.querySelector("svg")?.getAttribute("viewBox") || "0 0 1600 400";
-        svg.setAttribute("viewBox", vb);
-        svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
-        svg.innerHTML = "";
         const span = 1 / srcPaths.length; // each stroke gets an equal slice of --write
-        srcPaths.forEach((sp, i) => {
-          const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
-          p.setAttribute("d", sp.getAttribute("d"));
-          p.setAttribute("pathLength", "1");
-          const start = (i * span).toFixed(4);
-          // undrawn (offset 1) until --write reaches this stroke's slice, then 0
-          p.style.strokeDashoffset = `clamp(0, calc(1 - (var(--write, 0) - ${start}) / ${span.toFixed(4)}), 1)`;
-          svg.appendChild(p);
+        signatures.forEach(([svg, progressVar]) => {
+          svg.setAttribute("viewBox", vb);
+          svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+          svg.innerHTML = "";
+          srcPaths.forEach((sp, i) => {
+            const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            p.setAttribute("d", sp.getAttribute("d"));
+            p.setAttribute("pathLength", "1");
+            const start = (i * span).toFixed(4);
+            // Each copy is independently driven by its own progress variable.
+            p.style.strokeDashoffset = `clamp(0, calc(1 - (var(${progressVar}, 0) - ${start}) / ${span.toFixed(4)}), 1)`;
+            svg.appendChild(p);
+          });
         });
         requestScrollUpdateRef.current && requestScrollUpdateRef.current();
       })
@@ -545,6 +554,26 @@ export default function Landing() {
       const vel = (window.scrollY - sl.y) / dt; // px per ms
       sl.y = window.scrollY;
       sl.t = now;
+      const reachProgress = clamp01((window.scrollY - vh * 4.6) / (vh * 0.499));
+      setCssVar(frame, "--reach-y", `${(-50 * (1 - reachProgress)).toFixed(3)}vh`);
+      if (!outroSignaturePlayedRef.current && window.scrollY >= vh * 5.099) {
+        outroSignaturePlayedRef.current = true;
+        outroSignatureTimerRef.current = window.setTimeout(() => {
+          const signature = outroSignatureRef.current;
+          if (!signature) return;
+          const start = performance.now();
+          const duration = reduceMotionQuery.matches ? 0 : 700;
+          const draw = (timestamp) => {
+            const progress = duration ? clamp01((timestamp - start) / duration) : 1;
+            setCssVar(signature, "--outro-write", progress.toFixed(4));
+            setStyleIfChanged(signature, "opacity", progress > 0 ? "1" : "0");
+            if (progress < 1) {
+              outroSignatureRafRef.current = window.requestAnimationFrame(draw);
+            }
+          };
+          outroSignatureRafRef.current = window.requestAnimationFrame(draw);
+        }, 500);
+      }
       setCssVar(frame, "--slosh", `${clamp(-vel * 2.5, -3.5, 3.5).toFixed(2)}deg`);
       // Use the rendered scroll velocity for a small elastic response. The
       // page continues to scroll normally; this only distorts content briefly.
@@ -764,6 +793,12 @@ export default function Landing() {
       window.removeEventListener("load", refreshLayoutMetrics);
       if (rafRef.current) {
         window.cancelAnimationFrame(rafRef.current);
+      }
+      if (outroSignatureTimerRef.current) {
+        window.clearTimeout(outroSignatureTimerRef.current);
+      }
+      if (outroSignatureRafRef.current) {
+        window.cancelAnimationFrame(outroSignatureRafRef.current);
       }
     };
   }, []);
@@ -1214,18 +1249,21 @@ export default function Landing() {
       {/* The flood occupies the final 1.1 viewports of the gallery sequence. */}
       <section className="outro content-warp" aria-hidden />
       <section className="reach-out" aria-labelledby="reach-out-title">
+        <svg className="reach-out__signature" ref={outroSignatureRef} aria-hidden />
         <div className="reach-out__headline">
-          <p>LET&apos;S MAKE SOMETHING</p>
-          <h2 id="reach-out-title">REACH OUT</h2>
-        </div>
-        <div className="reach-out__footer">
-          <p className="reach-out__invite">
-            Wanna jam on a project together? Wanna catch up for a chat? A coffee? Some games? Reach out!
-          </p>
+          <h2 id="reach-out-title" className="reach-out__title-mask" aria-label="REACH OUT">
+            {ready && <Dithering {...OUTRO_FOG} />}
+          </h2>
           <a className="reach-out__email" href="mailto:legaspijazztinnkyle@gmail.com">
             legaspijazztinnkyle@gmail.com
           </a>
+        </div>
+        <div className="reach-out__footer">
           <p className="reach-out__rights">JAZZTINN. ALL RIGHTS RESERVED.</p>
+        </div>
+        <div className="reach-out__bottom-waves" aria-hidden>
+          <div className="liquid-wave one" />
+          <div className="liquid-wave two" />
         </div>
       </section>
     </div>
